@@ -1,5 +1,6 @@
 # adapted from https://gist.github.com/duguyue100/f60bdc1eb0e5b51586ca3594d9d72cb7 
 # why does ^ random.uniform select from range of parameters
+# vs DVS_PARAMS for Clean, Noisy 
 """
 Use V2E to simulate the entire dataset.
 For Ideal range:
@@ -29,88 +30,91 @@ import glob
 import subprocess
 import random
 import json
+import v2e
 
-parser = argparse.ArgumentParser()
+import numpy as np
 
-parser.add_argument("--input_path", type=str, default="./Data/RandomImWalk/300Frames50Hz")
-parser.add_argument("--output_path", type=str, default="./Data/RandomImWalk/346DVSEvents")
-parser.add_argument("--condition", type=str,
-                    help="'Clean', 'bright', 'dark'", default="Clean")
-# implement select list? 
-parser.add_argument("--im_ix", type=list, default=None)
-parser.add_argument("--input_frame_rate",type=int,default=50)
+from im2randomwalk import pickleRandomWalk
 
-args = parser.parse_args()
+def im2frames2events(args,imix):
 
-# set configs
-# Ideal/Clean range
-if args.condition == "Clean":
-    # threshold in log_e intensity change to trigger a positive/negative event. (default: 0.2)
-    thres = 0.2
-    # 1-std deviation threshold variation in log_e intensity change. (default: 0.03)
-    sigma = 0.03
-    # photoreceptor first-order IIR lowpass filter cutoff-off 3dB frequency in Hz - see https://ieeexplore.ieee.org/document/4444573 (default: 300)
-    cutoff_hz = 0
-    # leak event rate per pixel in Hz - see https://ieeexplore.ieee.org/abstract/document/7962235 (default: 0.01)
-    leak_rate_hz = 0
-    # Temporal noise rate of ON+OFF events in darkest parts of scene; reduced in brightest parts.
-    shot_noise_rate_hz = 0
+    # TODO should be in dataloader but requires subprocess working conditionally as well as in parallel 
+    if args.walk == 'random':
 
+       pickleRandomWalk(args, imix)     
+        
+    else:
+        raise NotImplementedError
 
-    # get root folder list
-valid_folders = sorted(
-    glob.glob(
-        os.path.join(args.data_root, "*", "image_*")))
-valid_folders = [x for x in valid_folders if ".npz" not in x]
-
-params_collector = {}
-
-for folder in valid_folders:
-    out_filename = os.path.basename(folder)+".h5"
-    out_folder = os.path.dirname(folder)
-    out_folder = out_folder.replace(args.data_root, args.output_root)
-
-    if not os.path.exists(out_folder):
-        os.makedirs(out_folder)
-
-    folder = os.path.join(folder, "images")
+    # set configs
+    # configs from v2e tutorial
+    # Ideal/Clean range
+    if args.condition == "Clean":
+        # threshold in log_e intensity change to trigger a positive/negative event. (default: 0.2)
+        thres = 0.2
+        # 1-std deviation threshold variation in log_e intensity change. (default: 0.03)
+        sigma = 0.03
+        # photoreceptor first-order IIR lowpass filter cutoff-off 3dB frequency in Hz - see https://ieeexplore.ieee.org/document/4444573 (default: 300)
+        cutoff_hz = 0
+        # leak event rate per pixel in Hz - see https://ieeexplore.ieee.org/abstract/document/7962235 (default: 0.01)
+        leak_rate_hz = 0
+        # Temporal noise rate of ON+OFF events in darkest parts of scene; reduced in brightest parts.
+        shot_noise_rate_hz = 0
+    
+    elif args.condition == 'Noisy':
+        thresh = 0.2
+        sigma_thresh = 0.05
+        cutoff_hz = 30
+        leak_rate_hz = 0.1
+        shot_noise_rate = 5
 
 
-    params_collector[os.path.join(out_folder, out_filename)] = {
-        "thres": thres,
-        "sigma": sigma,
-        "cutoff_hz": cutoff_hz,
-        "leak_rate_hz": leak_rate_hz,
-        "shot_noise_rate_hz": shot_noise_rate_hz}
+        # get root folder list
+ 
+    out_folder = args.events_path
+    in_file = f"{args.video_path}/Im_{imix}.mov"
+    out_file_h5 = f"Im_{imix}.h5"
+    out_file_avi = f"Im_{imix}.avi"
+    output_mode = args.camera_config
 
-    # dump bias configs all the time
-    with open(os.path.join(args.output_root,
-                           "dvs_params_settings.json"), "w") as f:
-        json.dump(params_collector, f, indent=4)
 
     v2e_command = [
         "v2e.py",
-        "-i", folder,
+        # video file or image folder!! 
+        #"-i", folder,
+        "-i", in_file,
+        # output folder
         "-o", out_folder,
+        f"--{output_mode}",
+        # overwrites files in existing folder (checks existence of non-empty output_folder)
         "--overwrite",
-        "--unique_output_folder", "false",
+        # seems right for testing. mod to false?
+        # if specifying --output_folder, makes unique output folder based on output_folder eg output 1 if non-empty out_put folder already exists
+        "--unique_output_folder", "true",
         "--no_preview",
-        "--skip_video_output",
+        # "--skip_video_output",
         "--disable_slomo",
         # MOD
-        "--dvs_exposure", 1/args.input_frame_rate,
+        "--dvs_exposure", "{}".format(1/args.frame_rate_hz) * 1000,
+        # "--dvs_exposure", "0.02",
         "--pos_thres", "{}".format(thres),
         "--neg_thres", "{}".format(thres),
         "--sigma_thres", "{}".format(sigma),
         "--cutoff_hz", "{}".format(cutoff_hz),
         "--leak_rate_hz", "{}".format(leak_rate_hz),
         "--shot_noise_rate_hz", "{}".format(shot_noise_rate_hz),
-        "--input_frame_rate", args.input_frame_rate,
+        "--input_frame_rate", "{}".format(args.frame_rate_hz),
         # "--input_slowmotion_factor", "17.866666708",
-        "--dvs_h5", out_filename,
+        "--input_slowmotion_factor", "1.0",
+        "--dvs_h5", out_file_h5,
+        "--dvs_vid", out_file_avi,
+        # only affects playback rate - for viewing consistency - asthetic only
+        "--avi_frame_rate", "{}".format(args.frame_rate_hz),
+        # for testing
         "--dvs_aedat2", "None",
         "--dvs_text", "None",
         "--dvs_exposure", "duration", "0.001",
         "--auto_timestamp_resolution", "false"]
 
-    subprocess.run(v2e_command)
+    # subprocess.run(v2e_command)
+    return v2e_command
