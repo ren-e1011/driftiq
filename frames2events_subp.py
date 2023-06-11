@@ -77,6 +77,9 @@ def im2frames2events(args,imix):
     out_file_avi = f"Im_{imix}.avi"
     output_mode = args.camera_config
 
+    exposure = 1/int(args.frame_rate_hz)
+    print('DVS_EXPOSURE',exposure)
+
 
     v2e_command = [
         "v2e.py",
@@ -95,7 +98,7 @@ def im2frames2events(args,imix):
         # "--skip_video_output",
         "--disable_slomo",
         # MOD
-        "--dvs_exposure", "{}".format(1/args.frame_rate_hz) * 1000,
+        "--dvs_exposure", "duration", "{}".format(exposure),
         # "--dvs_exposure", "0.02",
         "--pos_thres", "{}".format(thres),
         "--neg_thres", "{}".format(thres),
@@ -110,10 +113,6 @@ def im2frames2events(args,imix):
         "--dvs_vid", out_file_avi,
         # only affects playback rate - for viewing consistency - asthetic only
         "--avi_frame_rate", "{}".format(args.frame_rate_hz),
-        # for testing
-        "--dvs_aedat2", "None",
-        "--dvs_text", "None",
-        "--dvs_exposure", "duration", "0.001",
         "--auto_timestamp_resolution", "false"]
 
     # subprocess.run(v2e_command)
