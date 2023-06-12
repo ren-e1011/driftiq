@@ -2,32 +2,13 @@ import argparse
 from subprocess import Popen
 
 import os
-import pickle
-from copy import deepcopy
-from random import shuffle, sample, choice
-
-import pandas as pd
-import numpy as np
-import torch
-from torchvision import datasets, transforms
-from torchvision.io import write_video
-import cv2
-
-from matplotlib import pyplot as plt
+from random import sample
 
 from frames2events_subp import im2frames2events
 
+from envar import * 
 
-FILEPATH = '/home/renee/DIQ'
 os.chdir(FILEPATH)
-OUTDIR = './Data/RandomImWalk_900Frames30Hz/'
-# swapped 346, 260 by inspection...shouldnt matter
-CAMERA_RES = (260,346,3)
-# default SENSOR.dtype is dtype('int64')
-SENSOR = np.zeros(CAMERA_RES,dtype=int)
-
-DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
-IM_SIZE = DATASET[0][0].size[0]
 
 
 parser = argparse.ArgumentParser()
@@ -48,7 +29,7 @@ parser.add_argument("--frame_rate_hz",type=int,default=50)
 # run list of indices in parallel
 # number of data to generate
 parser.add_argument("--n_im", type=int, default=4)
-
+# Clean vs noisy for events generation - not relevant for this project
 parser.add_argument("--condition",type=str,default="Clean")
 
 args = parser.parse_args()

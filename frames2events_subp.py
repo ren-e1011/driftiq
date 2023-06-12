@@ -24,15 +24,10 @@ For low light range:
 Author: Yuhuang Hu
 Email : yuhuang.hu@ini.uzh.ch
 """
-import argparse
-import os
-import glob
-import subprocess
-import random
-import json
-import v2e
 
-import numpy as np
+import json
+# implied - proc is returned
+# import v2e
 
 from im2randomwalk import pickleRandomWalk
 
@@ -61,6 +56,7 @@ def im2frames2events(args,imix):
         # Temporal noise rate of ON+OFF events in darkest parts of scene; reduced in brightest parts.
         shot_noise_rate_hz = 0
     
+    # not relevant for this experiment
     elif args.condition == 'Noisy':
         thresh = 0.2
         sigma_thresh = 0.05
@@ -78,8 +74,6 @@ def im2frames2events(args,imix):
     output_mode = args.camera_config
 
     exposure = 1/int(args.frame_rate_hz)
-    print('DVS_EXPOSURE',exposure)
-
 
     v2e_command = [
         "v2e.py",

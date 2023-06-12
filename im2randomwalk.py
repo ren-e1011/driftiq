@@ -3,40 +3,21 @@ import pickle
 from copy import deepcopy
 from random import shuffle, sample, choice
 
-import argparse
-import glob
-import subprocess
-import random
-import json
-
-import pandas as pd
 import numpy as np
-import torch
-from torchvision import datasets, transforms
 from torchvision.io import write_video
-import cv2
 
 from matplotlib import pyplot as plt
 
 import frames2events
 
-# TODO rm
-FILEPATH = '/home/renee/DIQ'
-os.chdir(FILEPATH)
-OUTDIR = './Data/RandomImWalk_900Frames30Hz/'
-# swapped 346, 260 by inspection...shouldnt matter
-CAMERA_RES = (260,346,3)
-# default SENSOR.dtype is dtype('int64')
-SENSOR = np.zeros(CAMERA_RES,dtype=int)
-DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
-IM_SIZE = DATASET[0][0].size[0]
+from envar import *
 
 # in principle could process the image as a lawnmower
 # n_steps OUT_DIM**2 for lawnmower is overkill - find some basis/justification for step count. works on full set. trial on small amount for testing
 # choose some step count in which probabilistically all <24> *patches will be traversed moving pixelwise -- considering global attention is patch-by-patch
 
 # n_steps = args.n_frames, size = CAMERA_RES
-def imgRandomWalk(args, size = (260,346,3), im_size = 32):
+def imgRandomWalk(args, size = CAMERA_RES, im_size = 32):
 
     n_steps = args.n_frames
 
