@@ -1,3 +1,4 @@
+# generate dataset or 
 import argparse
 from subprocess import Popen
 
@@ -28,28 +29,41 @@ parser.add_argument("--frame_rate_hz",type=int,default=50)
 
 # run list of indices in parallel
 # number of data to generate
-parser.add_argument("--n_im", type=int, default=4)
+parser.add_argument("--n_im", type=int, default=None)
 # Clean vs noisy for events generation - not relevant for this project
 parser.add_argument("--condition",type=str,default="Clean")
 
 args = parser.parse_args()
 
+def generate_randomwalk_events(im_ixs):
 
-args.dataset = DATASET
+    proc_ixs = [i for i in im_ixs if not os.path.isfile(args.events_path+f"/Im_{i}.avi")]
+        # test 
+    
+    # mod to change 
+    # im2frames2events returns the command
+    procs = [Popen(im2frames2events(args,i)) for i in proc_ixs]
+
+    for p in procs:
+        p.wait()
+
+def generate_infodriven_events(im_ixs):
+
+    raise NotImplementedErorr()
 
 if __name__ == '__main__':
     # 900 frames at 30fps is 30 seconds - ?
     # drift speed ~40 arcmin/second - 
     # don't record all the steps 
-    im_ixs = [i for i in range(len(DATASET))]
+    im_ixs = [i for i in range(len(CIFAR))]
     # random.sample - without replacement (random.choices with replacement)
-    ixs = sample(im_ixs,args.n_im)
+    if args.n_im is not None:
+        im_ixs = sample(im_ixs,args.n_im)
+
+    if args.walk == 'random':
+        generate_randomwalk_events(im_ixs)
     
-
-    # mod to change 
-    # im2frames2events returns the command
-    procs = [Popen(im2frames2events(args,i)) for i in ixs]
-
-    for p in procs:
-        p.wait()
+    # create events if does not exist
+    
         
+    

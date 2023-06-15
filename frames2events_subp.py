@@ -26,13 +26,26 @@ Email : yuhuang.hu@ini.uzh.ch
 """
 
 import json
+import os
 # implied - proc is returned
 # import v2e
 
 from im2randomwalk import pickleRandomWalk
 
-def im2frames2events(args,imix):
+def im2frames2events(args,imix, overwrite = False):
 
+    out_folder = args.events_path
+    in_file = f"{args.video_path}/Im_{imix}.mov"
+    out_file_h5 = f"Im_{imix}.h5"
+    out_file_avi = f"Im_{imix}.avi"
+    output_mode = args.camera_config
+
+    exposure = 1/int(args.frame_rate_hz)
+
+    if not overwrite and os.path.isfile(out_folder+"/"+out_file_avi):
+        # test 
+        print(out_file_avi,"File exists")
+        return
     # TODO should be in dataloader but requires subprocess working conditionally as well as in parallel 
     if args.walk == 'random':
 
@@ -67,13 +80,6 @@ def im2frames2events(args,imix):
 
         # get root folder list
  
-    out_folder = args.events_path
-    in_file = f"{args.video_path}/Im_{imix}.mov"
-    out_file_h5 = f"Im_{imix}.h5"
-    out_file_avi = f"Im_{imix}.avi"
-    output_mode = args.camera_config
-
-    exposure = 1/int(args.frame_rate_hz)
 
     v2e_command = [
         "v2e.py",

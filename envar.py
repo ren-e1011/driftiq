@@ -9,5 +9,10 @@ CAMERA_RES = (260,346,3)
 # default SENSOR.dtype is dtype('int64')
 SENSOR = np.zeros(CAMERA_RES,dtype=int)
 
-DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
-IM_SIZE = DATASET[0][0].size[0]
+CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
+IM_SIZE = CIFAR[0][0].size[0]
+
+# if self.train else downloaded_list = self.test_list - butt there is a test folder?
+# TESTSET = DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=False,download=True, transform=None)
+
+BATCH_SIZE = 4

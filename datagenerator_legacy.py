@@ -23,8 +23,8 @@ CAMERA_RES = (260,346,3)
 # default SENSOR.dtype is dtype('int64')
 SENSOR = np.zeros(CAMERA_RES,dtype=int)
 
-DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
-IM_SIZE = DATASET[0][0].size[0]
+CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
+IM_SIZE = CIFAR[0][0].size[0]
 
 # in principle could process the image as a lawnmower
 # n_steps OUT_DIM**2 for lawnmower is overkill - find some basis/justification for step count. works on full set. trial on small amount for testing
@@ -109,7 +109,7 @@ def imgRandomWalk(n_steps = CAMERA_RES[0] * CAMERA_RES[1], size = CAMERA_RES):
 
 imgWalk_dict = {}
 def trajectory_to_frames(im_ix = 0, n_steps = CAMERA_RES[0] * CAMERA_RES[1], size = IM_SIZE, sensor_size = CAMERA_RES, record = True):
-    img = np.array(DATASET[im_ix][0])
+    img = np.array(CIFAR[im_ix][0])
     walk = imgRandomWalk(n_steps = n_steps, size = sensor_size)
     
     if record: 
@@ -120,7 +120,7 @@ def trajectory_to_frames(im_ix = 0, n_steps = CAMERA_RES[0] * CAMERA_RES[1], siz
     
     frames = [np.zeros(CAMERA_RES,dtype=int) for step in walk]
     for i in range(len(frames)):
-        frames[i][walk[i][0]:walk[i][0]+IM_SIZE,walk[i][1]:walk[i][1]+IM_SIZE] = DATASET[im_ix][0]
+        frames[i][walk[i][0]:walk[i][0]+IM_SIZE,walk[i][1]:walk[i][1]+IM_SIZE] = CIFAR[im_ix][0]
     
     # for step in walk:
     #     img = img[:,ste[0]:step[0]]
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     # 900 frames at 30fps is 30 seconds - ?
     # drift speed ~40 arcmin/second - 
     # don't record all the steps 
-    im_ixs = [i for i in range(len(DATASET))]
+    im_ixs = [i for i in range(len(CIFAR))]
     # random.sample - without replacement (random.choices with replacement)
     ixs = sample(im_ixs,16)
 

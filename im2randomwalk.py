@@ -102,7 +102,7 @@ def randTraj2frames(args, imix, im_size = 32, sensor_size = (260,346,3), record 
 
     n_steps = args.n_frames
 
-    img = np.array(DATASET[imix][0])
+    img = np.array(CIFAR[imix][0])
     # print('img_size',img.size)
 
     walk = imgRandomWalk(args, size = sensor_size)
