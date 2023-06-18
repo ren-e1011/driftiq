@@ -32,7 +32,7 @@ import os
 
 from im2randomwalk import pickleRandomWalk
 
-def im2frames2events(args,imix, overwrite = False):
+def im2frames2events(args,imix):
 
     out_folder = args.events_path
     in_file = f"{args.video_path}/Im_{imix}.mov"
@@ -42,10 +42,7 @@ def im2frames2events(args,imix, overwrite = False):
 
     exposure = 1/int(args.frame_rate_hz)
 
-    if not overwrite and os.path.isfile(out_folder+"/"+out_file_avi):
-        # test 
-        print(out_file_avi,"File exists")
-        return
+    
     # TODO should be in dataloader but requires subprocess working conditionally as well as in parallel 
     if args.walk == 'random':
 

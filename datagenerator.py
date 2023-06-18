@@ -49,7 +49,7 @@ def generate_randomwalk_events(im_ixs):
 
 def generate_infodriven_events(im_ixs):
 
-    raise NotImplementedErorr()
+    raise NotImplementedError
 
 if __name__ == '__main__':
     # 900 frames at 30fps is 30 seconds - ?

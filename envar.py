@@ -16,3 +16,11 @@ IM_SIZE = CIFAR[0][0].size[0]
 # TESTSET = DATASET = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=False,download=True, transform=None)
 
 BATCH_SIZE = 4
+
+# from RVT > train.py
+os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
