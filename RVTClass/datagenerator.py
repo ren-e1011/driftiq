@@ -75,7 +75,7 @@ def im2randframes2events(imix, nsteps,fps,traj_dir,traj_pkl,events_dir,events_h5
                             # up from 0.2 default
                             pos_thres = 0.4,
                             neg_thres = 0.4,
-                            # for a two second duration
+                            # for a two second durationlen(cut_events[0])
                             # each frame is 0.02s for a total walk-duration of 6s
                             refractory_period_s=0.05)
     # should reset 
@@ -118,9 +118,9 @@ def im2randframes2events(imix, nsteps,fps,traj_dir,traj_pkl,events_dir,events_h5
             # implicit in 
             # v2e.v2ecore.emulator __init__ 313-325, 960 - 965
             
-            # 
-    # t_genevents_e = time.time()
-    # print(f"Time to generate events for im {imix}, ", t_genevents_e - t_genevents_s)
+    return events, walker.walk 
+    
+
 
     with open(os.path.join(traj_dir,traj_pkl), 'wb') as fp:
         pickle.dump(walker.walk, fp)
@@ -129,6 +129,8 @@ def im2randframes2events(imix, nsteps,fps,traj_dir,traj_pkl,events_dir,events_h5
         hits_pkl = f"Im_{imix}.pkl"
         with open(os.path.join(hits_dir,hits_pkl),'wb') as fh:
             pickle.dump(randEvents_dict, fh)
+
+
 
     
 # called for an info walk
@@ -222,6 +224,137 @@ def im2infoframes2events(imix,nsteps,fps,traj_dir,traj_pkl,events_dir,events_h5,
     with open(os.path.join(traj_dir,traj_pkl), 'wb') as fp:
         pickle.dump(walker.walk, fp)
 
+
+
+##########################################
+     
+# for the specific purpose of walking in a constant line followed by any amount of pause - for data observation 
+def im2linewalk2events(i,nsteps = 60, npause = 40, vec="N", refrac_pd = 0.0, thres = 0.4, fps = FPS, start_pos: list = []):
+    events = []
+    spikes_count = []
+    img = np.array(CIFAR[i][0])
+
+    # no output folder, no dvs_h5
+    v2ee = StatefulEmulator(output_folder = None ,dvs_h5 = None,
+                            # where 1 frame: 1 timestep
+                            num_frames = nsteps + npause,
+                            fps = fps,
+                            pos_thres = thres,
+                            neg_thres = thres,
+                            # for a two second duration
+                            # each frame is 0.02s 
+                            refractory_period_s=refrac_pd)
+    
+    
+    walker = RandomWalk() 
+
+    # if no start position, walker.walk is initialized to [[sensor_center]]
+    coords = walker.walk[-1].copy() if start_pos == [] else start_pos
+    frame = np.zeros(walker.sensor_size,dtype=int)
+    frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
+
+    # to initialize the v2ee. should be none - and not appended to events
+    new_events = v2ee.em_frame(frame)
+
+    for step in range(nsteps + npause): 
+        if step < nsteps: 
+            last_step = walker.walk[-1].copy() 
+        
+            coords = walker.coord_move(vec=vec)
+            # CAMERA RES (X,Y,3) to fit 3d img
+            frame = np.zeros(walker.sensor_size,dtype=int)
+            frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
+
+        else:
+            # to append to walker
+            coords = walker.coord_move(vec='X')
+        # returns xa_next, entropy_a to monitor entropy 
+    
+        # save events 
+        new_events = v2ee.em_frame(frame)
+        # only save new_events if they are within scope
+        # num_events = len(new_events) if new_events is not None else 0 
+
+
+        if new_events is not None:
+            events.append(new_events)
+            spikes_count.append(len(new_events))
+
+        # unnecessary to save empty events because time variable is continuous 
+            # save for cutEdges which aligns with each step - will discard during preprocess
+        else:
+            events.append([])
+            spikes_count.append(0)
+
+
+        # even if zero
+        # spikes_count.append(num_events)
+
+    v2ee.cleanup()
+
+    return events, spikes_count, walker.walk
+
+    
+## Not to save dataset wholesale but to access data chunk on the fly or continuation of a walk
+def im2krandsteps2events(i, timesteps=40,refrac_pd = 0.0, thres=0.4, fps = 50, start_pos: list = []):
+    events = []
+    # spikes_count = []
+    img = np.array(CIFAR[i][0])
+
+    # no output folder, no dvs_h5
+    v2ee = StatefulEmulator(output_folder = None ,dvs_h5 = None,
+                            # where 1 frame: 1 timestep
+                            num_frames = timesteps,
+                            fps = fps,
+                            pos_thres = thres,
+                            neg_thres = thres,
+                            # for a two second duration
+                            # each frame is 0.02s 
+                            refractory_period_s=refrac_pd)
+    
+    
+    walker = RandomWalk() 
+
+    # if no start position, walker.walk is initialized to [[sensor_center]]
+    coords = walker.walk[-1].copy() if start_pos == [] else start_pos
+    frame = np.zeros(walker.sensor_size,dtype=int)
+    frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
+
+    # should be none - and not appended to events
+    new_events = v2ee.em_frame(frame)
+
+    for step in range(timesteps): 
+        last_step = walker.walk[-1].copy() 
+    
+        coords = walker.coord_move()
+        # CAMERA RES (X,Y,3) to fit 3d img
+        frame = np.zeros(walker.sensor_size,dtype=int)
+        frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
+
+        # returns xa_next, entropy_a to monitor entropy 
+    
+        # save events 
+        new_events = v2ee.em_frame(frame)
+        # only save new_events if they are within scope
+        # num_events = len(new_events) if new_events is not None else 0 
+
+
+        if new_events is not None:
+            events.append(new_events)
+
+        # unnecessary to save empty events because time variable is continuous 
+            # save for cutEdges which aligns with each step - will discard during preprocess
+        else:
+            events.append([])
+
+
+        # even if zero
+        # spikes_count.append(num_events)
+
+    v2ee.cleanup()
+
+    return events, walker.walk
+
 from envar import *
 from random import sample
 from tqdm import tqdm
@@ -258,16 +391,26 @@ if __name__ == "__main__":
     frame_rate_hz =50
     walk = "random"
 
+    traj_path = RAND_TRAJPATH if walk == 'random' else INFO_TRAJPATH
+
+
     events = None
-    for i in imixs:
+    for i in tqdm(imixs):
         try: 
             events = np.array(h5py.File(events_path+f"/Im_{i}.h5")['events'], dtype='int32')
+
+            imtraj_pkl = os.path.join(traj_path,f"Im_{i}.pkl")
+            with open(imtraj_pkl, 'rb') as fp:
+            # dict of event counts accessed by [x][y]
+                imtraj = pickle.load(fp)
             # whether file does not exist or is corrupted
             # OSError or FileNotFoundError 
         except OSError:
             if os.path.isfile(events_path+f"/Im_{i}.h5"):
                 os.remove(events_path+f"/Im_{i}.h5")
-            im2frames2events(i, walk = walk, nsteps = n_frames, fps = frame_rate_hz )
+            if os.path.isfile(traj_path+f"/Im_{i}.pkl"):
+                os.remove(traj_path+f"/Im_{i}.pkl")
+            im2frames2events(i, walk = walk, nsteps = n_frames, fps = frame_rate_hz)
             # events = np.array(h5py.File(events_path+f"/Im_{i}.h5")['events'], dtype='int32')
             print('Generated', f"Im_{i}.h5")
     # for i in tqdm(imixs):

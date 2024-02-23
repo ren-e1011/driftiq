@@ -11,7 +11,7 @@ class StatefulEmulator(EventEmulator):
     height, width = CAMERA_RES[0], CAMERA_RES[1]
 
     def __init__(self, 
-                 output_folder,dvs_h5,
+                 output_folder = None ,dvs_h5 = None,
         leak_rate_hz=0.0,
         shot_noise_rate_hz=0.0,
         output_width = width,
@@ -22,7 +22,6 @@ class StatefulEmulator(EventEmulator):
         pos_thres = 0.4,
         neg_thres = 0.4,
         refractory_period_s=0.005
-
             
     ):
         super().__init__(output_folder=output_folder,dvs_h5=dvs_h5,leak_rate_hz=leak_rate_hz, shot_noise_rate_hz=shot_noise_rate_hz, output_width=output_width, output_height=output_height, refractory_period_s=refractory_period_s, pos_thres=pos_thres, neg_thres=neg_thres)

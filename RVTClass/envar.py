@@ -12,11 +12,11 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
+# https://freedium.cfd/https://iamholumeedey007.medium.com/memory-management-using-pytorch-cuda-alloc-conf-dabe7adec130
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1"
 
 import numpy as np
-import torch
 from torchvision import datasets
-import time
 
 FILEPATH = '/home/renaj/DIQ'
 RAND_ = "Data/RandomImWalk"
@@ -55,13 +55,21 @@ INFO_HITSDIR = os.path.join(FILEPATH, INFO_, "HitLists")
 # CAMERA_RES = (240,304,3)
 DVS_RES = (260,346,3)
 # fictional 
-CAMERA_RES = (192,320,3)
+# CAMERA_RES = (192,320,3)
+CAMERA_RES = (96,96,3)
+# CAMERA_RES = DVS_RES
+
 # default SENSOR.dtype is dtype('int64')
-SENSOR = np.zeros(CAMERA_RES,dtype=int)
+# SENSOR = np.zeros(CAMERA_RES,dtype=int)
 
 CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
 # 32
 IM_SIZE = CIFAR[0][0].size[0]
+# mod camera_res to dvs_res? 
+CENTER = [CAMERA_RES[0]//2 - IM_SIZE//2, CAMERA_RES[1]//2 - IM_SIZE//2]
+# determines time step 
+FPS = 50
+
 # 42500 .85*50k
 TRAIN_SPLIT_SZ = .85
 VAL_SPLIT_SZ = 1 - TRAIN_SPLIT_SZ
@@ -71,7 +79,8 @@ VAL_SPLIT_SZ = 1 - TRAIN_SPLIT_SZ
 
 # mod from 16
 BATCH_SIZE = 32
-
+# for testing
+EPOCHS = 50
 
 
 SEQ_LEN = 1600 # number of events, not length of video 
@@ -90,6 +99,7 @@ ev_repr_delta_ts_ms = 50 #  if config.event_window_extraction.method == Aggregat
 ts_step_frame_ms = 100
 
 # RuntimeError: Given groups=1, weight of size [64, 20, 7, 7], expected input[2, 10, 260, 346] to have 20 channels, but got 10 channels instead:: nbins (T) is set to 10 but because they flatten the polarity which is delivered as 2 channels in theirs and 1 in ours, presume nbins should be 20 
+# ^ 10 bins for each channel? 
 nbins = 20 # T 
 count_cutoff = 10 #...or MISSING?
 
@@ -102,5 +112,3 @@ align_t_ms = 100
 align_t_us = align_t_ms * 1000
 delta_t_us = ts_step_ev_repr_ms * 1000
 
-# for testing
-EPOCHS = 2
