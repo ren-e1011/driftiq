@@ -53,6 +53,7 @@ INFO_HITSDIR = os.path.join(FILEPATH, INFO_, "HitLists")
 # CAMERA_RES = (260,346,3)
 # gen1
 # CAMERA_RES = (240,304,3)
+# height, width 
 DVS_RES = (260,346,3)
 # fictional 
 # CAMERA_RES = (192,320,3)

@@ -7,7 +7,7 @@ from envar import *
 import numpy as np
 
 class RandomWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, start_pos:list = []):
+    def __init__(self,sensor_size= DVS_RES, im_size = IM_SIZE, start_pos:list = []):
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         
@@ -27,6 +27,8 @@ class RandomWalk:
         #while  i not in self.v2ee[imix]['step'].keys():
         self.stepset = ['N','E','S','W', 'NE', 'NW', 'SE', 'SW']
 
+ 
+    
     def _coord_move(self,vec: str, x_a: list, stepset: list):
         if vec == 'N' and (x_a[1] - 1 >= 0):
             x_a[1] -= 1
@@ -69,6 +71,55 @@ class RandomWalk:
             # coord_move(<- if edge, pick a new )
         
         return x_a
+    
+    # (along y,x axes)
+    # def _coord_move(self,vec:str = None, x_a:list = [], stepset:list = None, edge_correct = True):
+        
+    #     # updates self.x_a or passed in coordinates
+    #     x_a = self.x_a if x_a == [] else x_a
+        
+    #     stepset = deepcopy(self.stepset) if stepset is None else stepset
+
+    #     # random step
+    #     vec = choice(stepset) if vec is None else vec
+
+    #     if vec == 'S'and (x_a[0] - 1 >= 0):
+    #         x_a[0] -= 1
+            
+    #     elif vec == 'SE' and (x_a[0] - 1 >= 0) and (x_a[1] + self.im_size < self.sensor_size[1]):
+    #         x_a[0] -= 1
+    #         x_a[1] += 1
+
+    #     elif vec == 'E' and (x_a[1] + self.im_size < self.sensor_size[1]):
+    #         x_a[1] += 1
+
+    #     elif vec == 'NE' and (x_a[0] + self.im_size < self.sensor_size[0]) and (x_a[1] + self.im_size < self.sensor_size[1]):
+    #         x_a[0] += 1
+    #         x_a[1] += 1
+
+    #     elif vec == 'N' and (x_a[0] + self.im_size < self.sensor_size[0]):
+    #         x_a[0] += 1
+
+    #     elif vec == 'NW' and (x_a[0] + self.im_size < self.sensor_size[0]) and (x_a[1] - 1 >= 0):
+    #         x_a[0] += 1
+    #         x_a[1] -= 1
+
+    #     elif vec == 'W' and (x_a[1] - 1 >= 0):
+    #         x_a[1] -= 1 
+
+    #     elif vec == 'SW' and (x_a[0] - 1 >= 0) and (x_a[1] - 1 >=0):
+    #         x_a[0] -= 1
+    #         x_a[1] -= 1
+    #     else: 
+    #         # if edge, pick a random step 
+    #         # would work for removing just one edge and also if the img is eg in a corner there are 3 
+    #         stepset = list(filter(lambda x: x != vec, stepset))
+    #         # vec is not None so will not instantiate new stepset
+    #         self._coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset)
+    #         # print(f"out of frame, step {step}")
+    #         # coord_move(<- if edge, pick a new )
+        
+    #     return x_a
     
     # x_a is an input starting position - for continuing a walk 
     def coord_move(self,vec:str = None, x_a:list = [], stepset:list = None):

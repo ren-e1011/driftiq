@@ -23,6 +23,7 @@ def im2frames2events(imix, walk = 'random', nsteps = 300, fps = 50):
         traj_path = RAND_TRAJPATH
         events_path = RAND_EVENTSDIR
         hits_path = RAND_HITSDIR
+        walker = RandomWalk()
         walk2events = im2randframes2events
 
     elif walk == 'info':
@@ -30,7 +31,9 @@ def im2frames2events(imix, walk = 'random', nsteps = 300, fps = 50):
         events_path = INFO_EVENTSDIR
         hits_path = INFO_HITSDIR
         walk2events = im2infoframes2events
-        #im2infoframes2events(imix,img, nsteps,fps,traj_dir=traj_path,traj_pkl=trajout_pkl,events_dir =events_path,events_h5=eventsout_h5)
+
+    elif walk == 'line':
+        walk2events = im2linewalk2events
         
     else:
         raise NotImplementedError
@@ -229,10 +232,19 @@ def im2infoframes2events(imix,nsteps,fps,traj_dir,traj_pkl,events_dir,events_h5,
 ##########################################
      
 # for the specific purpose of walking in a constant line followed by any amount of pause - for data observation 
-def im2linewalk2events(i,nsteps = 60, npause = 40, vec="N", refrac_pd = 0.0, thres = 0.4, fps = FPS, start_pos: list = []):
+def im2linewalk2events(i = 0,img = None,nsteps = 60, npause = 40, vec="N", refrac_pd = 0.0, thres = 0.4, fps = FPS, start_pos: list = [], frame_h: int = None, frame_w: int = None):
+    
+    frame_h = DVS_RES[0] if frame_h is None else frame_h
+    frame_w = DVS_RES[1] if frame_w is None else frame_w
+
     events = []
     spikes_count = []
-    img = np.array(CIFAR[i][0])
+    img = np.array(CIFAR[i][0]) if img is None else img
+    walker = RandomWalk(sensor_size = (frame_h,frame_w)) if len(img.shape) == 2 else RandomWalk(sensor_size = (frame_h,frame_w,3))
+
+
+    ## equivalent to np.transpose(img,axes=(1,0,2))
+    imgT = np.swapaxes(img,0,1)
 
     # no output folder, no dvs_h5
     v2ee = StatefulEmulator(output_folder = None ,dvs_h5 = None,
@@ -243,16 +255,16 @@ def im2linewalk2events(i,nsteps = 60, npause = 40, vec="N", refrac_pd = 0.0, thr
                             neg_thres = thres,
                             # for a two second duration
                             # each frame is 0.02s 
-                            refractory_period_s=refrac_pd)
+                            refractory_period_s=refrac_pd
+    )
     
+    # mod rm dtype = int
+    frame = np.zeros([walker.sensor_size[0],walker.sensor_size[1]]) if len(img.shape) == 2 else np.zeros(walker.sensor_size,dtype=int)
     
-    walker = RandomWalk() 
-
     # if no start position, walker.walk is initialized to [[sensor_center]]
     coords = walker.walk[-1].copy() if start_pos == [] else start_pos
-    frame = np.zeros(walker.sensor_size,dtype=int)
-    frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
-
+    frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = imgT
+    
     # to initialize the v2ee. should be none - and not appended to events
     new_events = v2ee.em_frame(frame)
 
@@ -262,8 +274,10 @@ def im2linewalk2events(i,nsteps = 60, npause = 40, vec="N", refrac_pd = 0.0, thr
         
             coords = walker.coord_move(vec=vec)
             # CAMERA RES (X,Y,3) to fit 3d img
-            frame = np.zeros(walker.sensor_size,dtype=int)
-            frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = img
+
+            # mod dtype = int
+            frame = np.zeros(walker.sensor_size)
+            frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = imgT
 
         else:
             # to append to walker
