@@ -4,6 +4,8 @@ from envar import *
 from v2e.v2ecore.emulator import EventEmulator
 import cv2
 
+from typing import Union 
+
 #from PIL import Image 
 
 class StatefulEmulator(EventEmulator):
@@ -17,7 +19,10 @@ class StatefulEmulator(EventEmulator):
         # testing to reduct 
         pos_thres = 0.4,
         neg_thres = 0.4,
-        refractory_period_s=0.0
+        refractory_period_s=0.0,
+
+        frame_h = CAMERA_RES[0],
+        frame_w = CAMERA_RES[1]
             
     ):
         
@@ -35,16 +40,19 @@ class StatefulEmulator(EventEmulator):
         self.current_time = 0.
         #self.idx = 0
         
-
         # not relevant as parameter because one image at a time? 
         #fps = FPS
         self.delta_t = 1 / fps
 
         # frame times 
-        # my understanding of v2e.v2e 611 (input_slowmotion_factor = 1.0), 788, 794-797 
+        # my understanding of v2e.v2e lines 611 (input_slowmotion_factor = 1.0), 788, 794-797 
         # starting times [0., 0.02,...,5.98] in increments of 0.02 for a total of six seconds
         interpTimes = np.array(range(num_frames))
         interpTimes = self.delta_t * interpTimes
+
+        self.frame_hw = (frame_h,frame_w)
+        self.img = np.zeros([IM_SIZE,IM_SIZE,3])
+        self.luma_img = np.zeros([IM_SIZE,IM_SIZE])
 
         # to save other event files 
         self.prepare_storage(num_frames,interpTimes)
@@ -52,11 +60,12 @@ class StatefulEmulator(EventEmulator):
         
         
 # TODO small batch of frames - using n_frames
-    def em_frame(self, frame: np.array):
+    def em_frame(self, luma_frame: np.array):
        
         # from v2e.v2ecore.emulator __main__ tester
-        frame = np.float32(frame)
-        luma_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+        # frame = np.float32(frame)
+        # else, passing in a bw frame 
+        # luma_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
 
         # emulate events
         # self.current_time should be equivalent to interpTimes[i]
@@ -84,22 +93,53 @@ class StatefulEmulator(EventEmulator):
         self.current_time += self.delta_t
 
         return new_events
+    
+    def _step_init(self,img: Union[int,np.array], walker):
+        if type(img) == int:
+            self.img = np.array(CIFAR[img][0])
+        
+        ## equivalent to np.transpose(img,axes=(1,0,2))
+        imgT = np.swapaxes(self.img,0,1)
+        imgT = np.float32(imgT) 
 
-    # print event stats
-    #    if new_events is not None:
-    #        num_events = new_events.shape[0]
-    #        start_t = new_events[0, 0]
-    #        end_t = new_events[-1, 0]
-    #        event_time = (new_events[-1, 0] - new_events[0, 0])
-    #        event_rate_kevs = (num_events / self.delta_t) / 1e3
+        if len(imgT.shape) == 3:
+            self.luma_img = cv2.cvtColor(imgT, cv2.COLOR_BGR2GRAY) 
 
-    #        """             print("Number of Events: {}\n"
-    #                "Duration: {}\n"
-    #                "Start T: {:.5f}\n"
-    #                "End T: {:.5f}\n"
-    #                "Event Rate: {:.2f}KEV/s".format(
-    #            num_events, event_time, start_t, end_t,
-    #            event_rate_kevs))
-    #        """     
+        if walker:
+            assert walker.sensor_size[0] == self.frame_hw[0]
+            assert walker.sensor_size[1] == self.frame_hw[1]
 
-    # def step(self,coords, frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1], refrac_pd = 0.0, thres=0.4, fps = 50):
+            center_coord = walker.start_pos
+        
+        else:
+            center_coord = [self.frame_hw[0]//2 - IM_SIZE//2, self.frame_hw[1]//2 - IM_SIZE//2] 
+
+        frame = np.zeros(self.frame_hw)
+        frame[center_coord[0]:center_coord[0]+ IM_SIZE,center_coord[1]:center_coord[1]+IM_SIZE] = self.luma_img 
+
+        # first frame should return None 
+        self.em_frame(luma_frame=frame)
+
+    # img can be the index of a CIFAR img or pass in an img directly (ex to test emulator behavior)
+    # coords is either one index to move or a list of coordinates to move
+    # walker can be None if pass in coords (such as line)
+    def step(self,img: Union[int,np.array], coords: list = [], walker = None):
+
+        if self.img.sum() == 0:
+            self._step_init(img,coords, walker)
+
+        assert (len(coords) > 0) or walker is not None 
+        
+        if not coords:
+            coords = walker.coord_move()
+
+
+        frame = np.zeros(self.frame_hw)
+        frame[coords[0]:coords[0]+ IM_SIZE,coords[1]:coords[1]+IM_SIZE] = self.luma_img
+
+        # new events 
+        return self.em_frame(luma_frame=frame)
+
+
+
+
