@@ -106,7 +106,7 @@ class StatefulEmulator(EventEmulator):
         if len(imgT.shape) == 3:
             self.luma_img = cv2.cvtColor(imgT, cv2.COLOR_BGR2GRAY) 
         else:
-            self.luma_img = self.img 
+            self.luma_img = imgT 
 
         if walker:
             assert walker.sensor_size[0] == self.frame_hw[0]
