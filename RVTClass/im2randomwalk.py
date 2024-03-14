@@ -12,8 +12,8 @@ class RandomWalk:
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         
-        
-        self.sensor_size = sensor_size
+        # mod self.sensor_size = size 
+        self.sensor_size = size
         self.im_size = im_size
 
         # same starting point for all instances, experiments - center of sensor
@@ -40,10 +40,13 @@ class RandomWalk:
         # random step
         vec = choice(stepset) if vec is None else vec
 
-        x_a_next = _coord_move(vec, x_a, stepset = stepset, sensor_size = self.sensor_size)
-        self.walk.append(x_a_next)
+        x_a_next, _ = _coord_move(vec, x_a, stepset = stepset, sensor_size = self.sensor_size)
+        # self.walk.append(x_a_next)
         
         return x_a_next
+    
+    def update(self, x_a_next, nspikes):
+        self.walk.append(x_a_next)
     
 if __name__ == "__main__":
     rw = RandomWalk()

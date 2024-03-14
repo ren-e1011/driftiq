@@ -1,11 +1,9 @@
-import os
-from envar import *
-import pickle
+from envar import CAMERA_RES, FPS, IM_SIZE, height, width 
+import numpy as np
 
-os.chdir(FILEPATH)
+# os.chdir(FILEPATH)
 import torch
 # default base e
-from math import log
 import pandas as pd
 
 def time_chunk_eventstream(x, steps = 40):
@@ -29,23 +27,47 @@ def time_chunk_eventstream(x, steps = 40):
     return _x
 
 # from saved - one stream of events
+# def cutEdges(x,imtraj, from_saved = False, steps = 40):
+
+#     if from_saved:
+#         x = time_chunk_eventstream(x,steps)
+
+#     # out_nw = CENTER
+#     out_nw = imtraj[0]
+#     imtraj = imtraj[1:]
+
+#     cut_x = []
+#     count_x = []
+
+#     assert(len(imtraj) == len(x))
+#     for i in range(len(imtraj)):
+#         x_slice = x[i]
+#         in_nw = imtraj[i]
+
+#         # append an empty list with 0 events
+#         if len(x_slice) > 0:
+#             # trajectory, is input as [x,y]
+#             # (since sensor is h x w but img is transposed to align)
+#             # events are input as [t,x,y]
+#             x_slice = x_slice[(x_slice[:,2] != out_nw[0]) & (x_slice[:,2] != in_nw[0])
+#                             & (x_slice[:,2] != out_nw[0]+IM_SIZE-1) & (x_slice[:,2] != in_nw[0]+IM_SIZE-1)
+#                             & (x_slice[:,1] != out_nw[1]) & (x_slice[:,1] !=in_nw[1])
+#                             & (x_slice[:,1] != out_nw[1]+IM_SIZE-1) & (x_slice[:,1] != in_nw[1]+IM_SIZE-1)]
+#         # after cut edges 
+#         if len(x_slice) > 0:
+#             cut_x.append(x_slice)
+        
+#         # even if 0 - for spike count keeping and experimentation 
+#         count_x.append(len(x_slice))
+
+#         out_nw = in_nw
+
+#     return cut_x, count_x  
+
+# from saved - one stream of events
 def cutEdges(x,imtraj, from_saved = False, steps = 40):
 
-    if from_saved:
-        x = time_chunk_eventstream(x,steps)
-
-    # out_nw = CENTER
-    out_nw = imtraj[0]
-    imtraj = imtraj[1:]
-
-    cut_x = []
-    spikes_x = []
-
-    assert(len(imtraj) == len(x))
-    for i in range(len(imtraj)):
-        x_slice = x[i]
-        in_nw = imtraj[i]
-
+    def cutSlice(x_slice,in_nw,out_nw):
         # append an empty list with 0 events
         if len(x_slice) > 0:
             # trajectory, is input as [x,y]
@@ -55,16 +77,44 @@ def cutEdges(x,imtraj, from_saved = False, steps = 40):
                             & (x_slice[:,2] != out_nw[0]+IM_SIZE-1) & (x_slice[:,2] != in_nw[0]+IM_SIZE-1)
                             & (x_slice[:,1] != out_nw[1]) & (x_slice[:,1] !=in_nw[1])
                             & (x_slice[:,1] != out_nw[1]+IM_SIZE-1) & (x_slice[:,1] != in_nw[1]+IM_SIZE-1)]
-        # after cut edges 
-        if len(x_slice) > 0:
-            cut_x.append(x_slice)
-        
-        # even if 0 - for spike count keeping and experimentation 
-        spikes_x.append(len(x_slice))
+        return x_slice
+    
+    if from_saved:
+        x = time_chunk_eventstream(x,steps)
 
-        out_nw = in_nw
+    assert len(imtraj) > 1
+    # out_nw = CENTER
+    out_nw = imtraj[0]
+    imtraj = imtraj[1:]
 
-    return cut_x, spikes_x  
+    
+
+    assert(len(imtraj) == len(x))
+
+    if len(x) == 1:
+        # could be an empty list 
+        cut_x = cutSlice(x, in_nw, out_nw)
+        count_x = len(cut_x)
+
+    else: 
+        cut_x = []
+        count_x = []
+        for i in range(len(imtraj)):
+            x_slice = x[i]
+            in_nw = imtraj[i]
+
+            x_slice = cutSlice(x_slice, in_nw, out_nw)
+
+            # after cut edges 
+            if len(x_slice) > 0:
+                cut_x.append(x_slice)
+            
+            # even if 0 - for spike count keeping and experimentation 
+            count_x.append(len(x_slice))
+
+            out_nw = in_nw
+    
+    return cut_x, count_x
 
 
 # bins = nbins # T

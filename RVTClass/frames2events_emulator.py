@@ -1,5 +1,8 @@
 # TODO combine frames2events_ee and frames2events_subp into frames2events and mod datagenerator accordingly
 
+# Passes frame to emulator with step dictated by walker
+# Is agnostic to the walk policy 
+
 from envar import * 
 from v2e.v2ecore.emulator import EventEmulator
 import cv2
@@ -51,6 +54,8 @@ class StatefulEmulator(EventEmulator):
 
         self.im_size = im_size 
         self.frame_hw = (frame_h,frame_w)
+        self.center = [self.frame_hw[0]//2 - self.im_size//2, self.frame_hw[1]//2 - self.im_size//2]
+
         self.img = np.zeros([self.im_size,self.im_size,3])
         self.luma_img = np.zeros([self.im_size,self.im_size])
 
@@ -93,12 +98,18 @@ class StatefulEmulator(EventEmulator):
         self.current_time += self.delta_t
 
         return new_events
-    
-    def _step_init(self,img: Union[int,np.array], walker):
+
+    def reset_(self, img: Union[int,np.array], start_pos: list = None):
+
+        
+        # this should not be for restarting the emulator - for the first positioning
+        center_coord = self.center if not start_pos else start_pos
+
         if type(img) == int:
             self.img = np.array(CIFAR[img][0])
         else:
             self.img = img 
+
         ## equivalent to np.transpose(img,axes=(1,0,2))
         imgT = np.swapaxes(self.img,0,1)
         imgT = np.float32(imgT) 
@@ -108,34 +119,51 @@ class StatefulEmulator(EventEmulator):
         else:
             self.luma_img = imgT 
 
-        if walker:
-            assert walker.sensor_size[0] == self.frame_hw[0]
-            assert walker.sensor_size[1] == self.frame_hw[1]
-
-            center_coord = walker.start_pos
-        
-        else:
-            # TODO mod IM_SIZE as in step() im_shape
-            center_coord = [self.frame_hw[0]//2 - self.im_size//2, self.frame_hw[1]//2 - self.im_size//2] 
-
         frame = np.zeros(self.frame_hw)
         frame[center_coord[0]:center_coord[0]+ self.im_size,center_coord[1]:center_coord[1]+self.im_size] = self.luma_img 
 
-        # first frame should return None 
+        # first frame should return None. If walker_start_pos  
         self.em_frame(luma_frame=frame)
+
+    # def _step_init(self,img: Union[int,np.array], walker):
+    #     if type(img) == int:
+    #         self.img = np.array(CIFAR[img][0])
+    #     else:
+    #         self.img = img 
+    #     ## equivalent to np.transpose(img,axes=(1,0,2))
+    #     imgT = np.swapaxes(self.img,0,1)
+    #     imgT = np.float32(imgT) 
+
+    #     if len(imgT.shape) == 3:
+    #         self.luma_img = cv2.cvtColor(imgT, cv2.COLOR_BGR2GRAY) 
+    #     else:
+    #         self.luma_img = imgT 
+
+    #     if walker:
+    #         assert walker.sensor_size[0] == self.frame_hw[0]
+    #         assert walker.sensor_size[1] == self.frame_hw[1]
+
+    #         center_coord = walker.start_pos
+        
+    #     else:
+    #         # TODO mod IM_SIZE as in step() im_shape
+    #         center_coord = [self.frame_hw[0]//2 - self.im_size//2, self.frame_hw[1]//2 - self.im_size//2] 
+
+    #     frame = np.zeros(self.frame_hw)
+    #     frame[center_coord[0]:center_coord[0]+ self.im_size,center_coord[1]:center_coord[1]+self.im_size] = self.luma_img 
+
+    #     # first frame should return None 
+    #     self.em_frame(luma_frame=frame)
+
+    #     # # TODO test 
+    #     # if hasattr(walker, 'mean_spikes'):
+    #     #     self.init_mean()
+
 
     # img can be the index of a CIFAR img or pass in an img directly (ex to test emulator behavior)
     # coords is either one index to move or a list of coordinates to move
     # walker can be None if pass in coords (such as line)
-    def step(self,img: Union[int,np.array], coords: list = [], vec:str = None, walker = None):
-        # if this is the first "step" ie img placement 
-        if self.img.sum() == 0:
-            self._step_init(img,walker)
-
-        assert (len(coords) > 0) or (walker is not None) 
-        
-        if not coords:
-            coords = walker.coord_move(vec)
+    def step(self,coords: list = []):
 
         frame = np.zeros(self.frame_hw)
         # self.luma_img is transposed and greyscaled
@@ -143,7 +171,10 @@ class StatefulEmulator(EventEmulator):
 
         # new events 
         new_events = self.em_frame(luma_frame=frame)
+
         # return empty list for clean_events aligned with trajectory 
         new_events = [] if new_events is None else new_events
+
+        
 
         return new_events

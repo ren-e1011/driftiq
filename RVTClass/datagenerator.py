@@ -1,9 +1,14 @@
-from envar import * 
+from envar import CAMERA_RES, IM_SIZE, RAND_TRAJPATH, RAND_EVENTSDIR, INFO_TRAJPATH, INFO_EVENTSDIR
+import os
+import numpy as np
 from frames2events_emulator import StatefulEmulator
 from im2infowalk import InfoWalk
 from im2randomwalk import RandomWalk
 import pickle 
 from typing import Union 
+from random import choice
+import warnings
+from preprocess import cutEdges
 
 
 def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: list = [],
@@ -14,16 +19,23 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
                      frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
                      save = False):
     
-    assert vec in {'N','E','S','W', 'NE', 'NW', 'SE', 'SW', None}
+    
+    assert not vec or not traj_preset
+
+    if vec:
+        traj_preset = [vec] * nsteps
+
+    if len(traj_preset) > 0:
+            nsteps = len(traj_preset) 
+
     events = []
-    # imix may be unnecessary if pass in img
 
     if type(img) == np.ndarray:
-        # assert im_shape[0] == im_shape[1]
-        # to ensure img does not pass boundary 
+        # to ensure img does not pass frame boundary 
         im_shape = max(img.shape[0],img.shape[1])
     else:
         im_shape = IM_SIZE 
+
     
     if walk == 'random':
         traj_path = RAND_TRAJPATH
@@ -39,6 +51,9 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
     # placeholder for multiple stabs at infotaxis 
     else:
         raise NotImplementedError
+    
+    if vec is not None:
+        assert vec in walker.stepset
     
     imix = img if type(img) == int else "0000"
     events_dir = events_path if save else None
@@ -56,19 +71,70 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
                             im_size = im_shape,
                             frame_h = frame_h,
                             frame_w = frame_w)
+    
+    assert walker.sensor_size[0] == v2ee.frame_hw[0]
+    assert walker.sensor_size[1] == v2ee.frame_hw[1]
+    assert walker.im_size == v2ee.im_size
 
-    if len(traj_preset) > 0:
-        nsteps = len(traj_preset) 
+    # initialize first frame of the emulator
+    # so as not to override EventEmulator.reset()
+    v2ee.reset_(img = img) 
+
+    
+    # initialize mean spikes 
+    if walk == 'info':
+
+        raw_spikes = []
+
+        round = 1 
+        # warmup 
+        for vec in walker.stepset * round:
+            coords, _ = walker.coord_move(vec=vec)
+            raw_spikes.append(v2ee.step(coords=coords))
+
+            # mean_spikes.append(len(v2ee.step(coords=coords)))
+            # To save random start in walk
+            # If want prior without any record, delete walker.update()
+            # if do not want to save random walk start, need to save step coords to cut
+            walker.update(x_a_next=coords)
+
+        # take spikes from the second set only after some warmup
+        raw_spikes = raw_spikes[-len(walker.stepset):]
+        imtraj = walker.walk[-len(walker.stepset) - 1:]
+        # list of spike counts 
+        # imtraj = imtraj instead of walker.walk
+        _, mean_spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
+        # initial hit. nhits last step morally equivalent to taking another step 
+        # vec = choice(walker.stepset)
+
+        max_spikes = max(mean_spikes)
+
+        mean_spikes = sum(mean_spikes)
+        mean_spikes /= len(walker.stepset)
+        mean_spikes = max(int(mean_spikes),1) 
+
+        walker._init_params(mean_spikes, max_spikes)
 
 
-    for step in range(nsteps):
-        coords = traj_preset[step] if traj_preset else []
+    # includes random steps start in nsteps 
+    start = len(walker.walk)
+    prev_coords = walker.walk[-1]
+    for step in range(start,nsteps):
+        # in the event of traj_preset and info walk, will overwrite first moves with random steps
+        next_coords, _ = traj_preset[step - start] if traj_preset else walker.coord_move()
+
         if paused and step in paused:
-            step_events = v2ee.step(img=img,coords=traj_preset,walker=walker, vec='X')
+            raw_events = v2ee.step(coords = next_coords,vec='X')
         else:
-            step_events = v2ee.step(img=img,coords=traj_preset,walker=walker, vec=vec)
-        # returns [] if step_events is None 
+            raw_events = v2ee.step(coords = next_coords,vec=vec)
+
+        # need to do it step by step for 
+        step_events = cutEdges(x = raw_events, imtraj=[prev_coords,next_coords])
+        # step_events returns [] => len == 0 if step_events is None 
+        walker.update(next_coords, len(step_events))
         events.append(step_events)
+
+        prev_coords = next_coords 
 
     # closes dvs file if saving etc
     v2ee.cleanup()
@@ -86,4 +152,12 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
 
 
 if __name__ == "__main__":
-    pass 
+    imix = 42
+    refrac_pd = 0.0
+    threshold = 0.4
+
+    nsteps = 40
+    events, traj = im2events(img=imix,refrac_pd=refrac_pd, pos_thres=threshold, neg_thres=threshold, 
+                                 nsteps=40,
+                                 frame_h = CAMERA_RES[0],frame_w = CAMERA_RES[1],
+                                 walk='info')

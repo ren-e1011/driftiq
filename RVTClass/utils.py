@@ -1,9 +1,16 @@
 
 from random import choice 
-from envar import CAMERA_RES, DVS_RES, IM_SIZE
+from envar import CAMERA_RES, DVS_RES, IM_SIZE, EPSILON
+from scipy.stats import poisson as Poisson_
+import numpy as np
+from copy import deepcopy
 
 
 def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
+        # else will modify x_a
+        x_a = deepcopy(x_a)
+        stepset = deepcopy(stepset)
+
         if vec == 'N' and (x_a[1] - 1 >= 0):
             x_a[1] -= 1
             # 
@@ -44,6 +51,7 @@ def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
             # print(f"out of frame, step {step}")import itertools
 
             # coord_move(<- if edge, pick a new )
-        
-        return x_a
-    
+        # return vec which might be different than 
+        return x_a, vec 
+
+
