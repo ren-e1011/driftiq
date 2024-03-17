@@ -86,6 +86,7 @@ def cutEdges(x,imtraj, from_saved = False, steps = 40):
     # out_nw = CENTER
     out_nw = imtraj[0]
     imtraj = imtraj[1:]
+    in_nw = imtraj[0]
 
     
 
@@ -93,7 +94,7 @@ def cutEdges(x,imtraj, from_saved = False, steps = 40):
 
     if len(x) == 1:
         # could be an empty list 
-        cut_x = cutSlice(x, in_nw, out_nw)
+        cut_x = cutSlice(x[0], in_nw, out_nw)
         count_x = len(cut_x)
 
     else: 

@@ -52,12 +52,12 @@ class StatefulEmulator(EventEmulator):
         interpTimes = np.array(range(num_frames))
         interpTimes = self.delta_t * interpTimes
 
-        self.im_size = im_size 
+        self.im_size = (im_size, im_size ) if isinstance(im_size, int) else im_size
         self.frame_hw = (frame_h,frame_w)
-        self.center = [self.frame_hw[0]//2 - self.im_size//2, self.frame_hw[1]//2 - self.im_size//2]
+        self.center = [self.frame_hw[0]//2 - self.im_size[0]//2, self.frame_hw[1]//2 - self.im_size[1]//2]
 
-        self.img = np.zeros([self.im_size,self.im_size,3])
-        self.luma_img = np.zeros([self.im_size,self.im_size])
+        self.img = np.zeros([self.im_size[0],self.im_size[1],3])
+        self.luma_img = np.zeros([self.im_size[0],self.im_size[1]])
 
         # to save other event files 
         self.prepare_storage(num_frames,interpTimes)
@@ -120,7 +120,7 @@ class StatefulEmulator(EventEmulator):
             self.luma_img = imgT 
 
         frame = np.zeros(self.frame_hw)
-        frame[center_coord[0]:center_coord[0]+ self.im_size,center_coord[1]:center_coord[1]+self.im_size] = self.luma_img 
+        frame[center_coord[0]:center_coord[0]+ self.im_size[0],center_coord[1]:center_coord[1]+self.im_size[1]] = self.luma_img 
 
         # first frame should return None. If walker_start_pos  
         self.em_frame(luma_frame=frame)
@@ -167,7 +167,7 @@ class StatefulEmulator(EventEmulator):
 
         frame = np.zeros(self.frame_hw)
         # self.luma_img is transposed and greyscaled
-        frame[coords[0]:coords[0]+ self.im_size,coords[1]:coords[1]+self.im_size] = self.luma_img
+        frame[coords[0]:coords[0]+ self.im_size[0],coords[1]:coords[1]+self.im_size[1]] = self.luma_img
 
         # new events 
         new_events = self.em_frame(luma_frame=frame)

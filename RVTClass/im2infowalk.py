@@ -18,14 +18,13 @@ class InfoWalk:
     # note that sensor size is in dimensions y,x for v2e input while prior was recorded in x,y
     def __init__(self,sensor_size= CAMERA_RES, im_size: int = IM_SIZE, start_pos:list = [], p_prior: np.array = None, mean_spikes: np.array = None):
 
-        size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
+        self.sensor_size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
 
-        self.sensor_size = size 
-        self.im_size = im_size 
+        self.im_size = (im_size, im_size ) if isinstance(im_size, int) else im_size
 
         # same starting point for all instances, experiments - center of sensor
         # init agent position x_a
-        self.start_pos = [size[0]//2 - im_size//2, size[1]//2 - im_size//2] if not start_pos else start_pos
+        self.start_pos = [self.sensor_size[0]//2 - self.im_size[0]//2, self.sensor_size[1]//2 - self.im_size[1]//2] if not start_pos else start_pos
 
         # save trajectory
         self.walk = [self.start_pos]
@@ -39,7 +38,8 @@ class InfoWalk:
         # uniform prior...or random walk prior 
         if p_prior is None: 
             
-            p_prior = np.ones((self.sensor_size[0],self.sensor_size[1]))
+            # p_prior = np.ones((self.sensor_size[0],self.sensor_size[1]))
+            p_prior = np.ones([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
             # interchangeable with self.p_prior = self.p_prior / prod((sensor_size[0],sensor_size[1]))
             p_prior = p_prior / p_prior.sum()
 
@@ -80,40 +80,50 @@ class InfoWalk:
     def _init_params(self,mean_spikes,maxspikes):
         self.mu = mean_spikes 
         self.hmax = int(mean_spikes + np.sqrt(mean_spikes)) 
-        if maxspikes > self.hmax:
-            # instead of raising hmax, ceiling of hmax 
-            warn(f"Max spikes, {maxspikes}, is larger than mu + sqrt(mu), {self.hmax}.")
-            self.hmax = maxspikes
-        self.hmax += 1
+        # if maxspikes > self.hmax:
+        #     # instead of raising hmax, ceiling of hmax 
+        #     warn(f"Max spikes, {maxspikes}, is larger than mu + sqrt(mu), {self.hmax}.")
+        #     self.hmax = maxspikes
 
         # std = int(np.std(mean_spikes))
         # walker.hit_list = range(1,walker.hmax,std)
-        self.hit_range = range(1,self.hmax)
+        self.hit_range = range(1,self.hmax+1)
 
         ## snippet from otto sourcetracking.py _compute_p_Poisson() lines 363-393
         # probability of receiving hits Pr(h|xa,x')
         # (len(hit_list), 65, 65) - for each NW coordinate 
-        self.p_Poisson = np.zeros([len(self.hit_range)] + [self.sensor_size[0] - self.im_size[0] + 1] * 2)
+        # len(self.hit_range) -> self.hmax
+        self.p_Poisson = np.zeros([len(self.hit_range)] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
         # (65,65)
         # to test that the hmax threshold is not too high
-        sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] * 2)
+        # if not square 
+        # sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] * 2)
+        sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
+        # range(1,hmax + 1) to include hmax and minimize hits at 1
         for h in self.hit_range:
-            self.p_Poisson[h] = self._Poisson(self.mu, h)
+            # (hmax, 65, 65)
+            self.p_Poisson[h - self.hit_range[0]] = self._Poisson(self.mu, h)
 
-            sum_proba += self.p_Poisson[h]
+            sum_proba += self.p_Poisson[h - self.hit_range[0]]
 
             if h < self.hmax:
                 sum_is_one = np.all(abs(sum_proba - 1) < EPSILON)
                 if sum_is_one:
                     warn(f"hmax at {self.hmax} is too large, reduce it to = {h+1} or lower - values higher than {h} have 0 probability")
+                    h_at_one = h
+                    self.hmax = h_at_one
+                    break 
+
+         
 
         # for all mu,h, pmf should == 1 
-        if not np.all(sum_proba == 1.0):
+        if not np.all(sum_proba) == 1.0:
             raise Exception(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
             # sum_proba += self.p_Poisson[h]
         
         # initial entropy with initial prior 
-        self.entropy = [self.H_s()]
+        # self.entropy = [self.H_s()]
+        self.entropy = []
 
     # At each step (source not found)
     # h - number of hits received
@@ -181,7 +191,7 @@ class InfoWalk:
             # poisson_h_xt1 = ((self.mu ** h) *(exp(-self.mu))) / (factorial(h))
             # H_h = self.H_s(prior_bar)
             # should never be neg? 
-            hsa_mx[h] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h]))
+            hsa_mx[h - self.hit_range[0]] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h-self.hit_range[0]]))
             # hsa_sum += (poisson_h_xt1 * H_h)
 
         hsa_sum = hsa_mx.sum()
