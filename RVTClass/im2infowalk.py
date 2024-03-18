@@ -79,6 +79,7 @@ class InfoWalk:
 
     def _init_params(self,mean_spikes,maxspikes):
         self.mu = mean_spikes 
+        # rm +1 due to warning message at h+1
         self.hmax = int(mean_spikes + np.sqrt(mean_spikes)) 
         # if maxspikes > self.hmax:
         #     # instead of raising hmax, ceiling of hmax 
@@ -86,25 +87,24 @@ class InfoWalk:
         #     self.hmax = maxspikes
 
         # std = int(np.std(mean_spikes))
-        # walker.hit_list = range(1,walker.hmax,std)
-        self.hit_range = range(1,self.hmax+1)
-
+        
         ## snippet from otto sourcetracking.py _compute_p_Poisson() lines 363-393
         # probability of receiving hits Pr(h|xa,x')
         # (len(hit_list), 65, 65) - for each NW coordinate 
         # len(self.hit_range) -> self.hmax
-        self.p_Poisson = np.zeros([len(self.hit_range)] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
+        self.p_Poisson = np.zeros([self.hmax] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
         # (65,65)
         # to test that the hmax threshold is not too high
         # if not square 
         # sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] * 2)
         sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
         # range(1,hmax + 1) to include hmax and minimize hits at 1
+        self.hit_range = range(self.hmax)
         for h in self.hit_range:
             # (hmax, 65, 65)
-            self.p_Poisson[h - self.hit_range[0]] = self._Poisson(self.mu, h)
+            self.p_Poisson[h] = self._Poisson(self.mu, h)
 
-            sum_proba += self.p_Poisson[h - self.hit_range[0]]
+            sum_proba += self.p_Poisson[h]
 
             if h < self.hmax:
                 sum_is_one = np.all(abs(sum_proba - 1) < EPSILON)
@@ -112,7 +112,6 @@ class InfoWalk:
                     warn(f"hmax at {self.hmax} is too large, reduce it to = {h+1} or lower - values higher than {h} have 0 probability")
                     h_at_one = h
                     self.hmax = h_at_one
-                    break 
 
          
 
@@ -132,12 +131,12 @@ class InfoWalk:
     # mod with otto sourcetracking.py _update_p_source
     def bayes_update(self,nhits: int, x_a: tuple):
 
+        nhits = min(nhits, self.hmax - 1)
 
         self.p_prior *= self.p_Poisson[nhits]
 
         self.p_prior[x_a] = 1.0
         self.p_prior /= self.p_prior.sum()
-
 
         return self.p_prior 
 
@@ -181,8 +180,12 @@ class InfoWalk:
         
         # compute hit probability 
         # == np.zeros(self.hmax)
-        hsa_mx = np.zeros(len(self.hit_range))
+
+        # self.p_Poisson was initiated with self.hmax. self.hmax could have been degraded 
+        hsa_mx = np.zeros(len(self.p_Poisson))
+        # hsa_mx = np.zeros(self.hmax)
         # hsa_sum = 0.0
+        # hit_range is initiated with hmax but could possibly skip values 
         for h in self.hit_range:            
             # Pr(h | 𝜇)
             # 𝜇 is the mean number of hits. It is a function of the Euclidean distance 𝑑=‖𝑥𝑠−𝑥𝑎‖2
@@ -191,7 +194,7 @@ class InfoWalk:
             # poisson_h_xt1 = ((self.mu ** h) *(exp(-self.mu))) / (factorial(h))
             # H_h = self.H_s(prior_bar)
             # should never be neg? 
-            hsa_mx[h - self.hit_range[0]] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h-self.hit_range[0]]))
+            hsa_mx[h] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h]))
             # hsa_sum += (poisson_h_xt1 * H_h)
 
         hsa_sum = hsa_mx.sum()
