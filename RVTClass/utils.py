@@ -1,8 +1,6 @@
 
 from random import choice 
-from envar import CAMERA_RES, DVS_RES, IM_SIZE, EPSILON
-from scipy.stats import poisson as Poisson_
-import numpy as np
+from envar import CAMERA_RES, IM_SIZE
 from copy import deepcopy
 
 
@@ -55,3 +53,43 @@ def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
         return x_a, vec 
 
 
+def _traj_to_dir(imtraj: list):
+        
+        dir_list = []
+
+        assert len(imtraj) > 1
+        out_nw = imtraj[0]
+        imtraj = imtraj[1:]
+        in_nw = imtraj[0]
+
+        for i in range(len(imtraj)):
+            in_nw = imtraj[i]
+            if in_nw == [out_nw[0],out_nw[1]-1]:
+                dir_list.append('N')
+
+            elif in_nw == [out_nw[0],out_nw[1]+1]:
+                dir_list.append('S')
+
+            elif in_nw == [out_nw[0]-1,out_nw[1]]:
+                dir_list.append('W')
+
+            elif in_nw == [out_nw[0]+1,out_nw[1]]:
+                dir_list.append('E')
+            
+            elif in_nw == [out_nw[0]-1,out_nw[1]-1]:
+                dir_list.append('NW')
+
+            elif in_nw == [out_nw[0]+1,out_nw[1]-1]:
+                dir_list.append('NE')
+
+            elif in_nw == [out_nw[0]-1,out_nw[1]+1]:
+                dir_list.append('SW')
+
+            elif in_nw == [out_nw[0]+1,out_nw[1]+1]:
+                dir_list.append('SE')
+
+            # in_nw == out_nw
+            else:
+                dir_list.append('X')
+            out_nw = in_nw 
+        return dir_list 
