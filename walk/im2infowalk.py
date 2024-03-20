@@ -153,7 +153,8 @@ class InfoWalk:
         p_bar = 1 - prior_bar[x_t1]
         # -> -inf H_s at this location 
         # replace with 1 else how to calculate the entropy 
-        prior_bar[x_t1] = 1.0
+        # prior_bar[x_t1] = 1.0
+        prior_bar[x_t1] = EPSILON
         # renormalization
         prior_bar /= prior_bar.sum()
         
