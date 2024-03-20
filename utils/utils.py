@@ -1,6 +1,6 @@
 
 from random import choice 
-from envar import CAMERA_RES, IM_SIZE
+from configs.envar import CAMERA_RES, IM_SIZE
 from copy import deepcopy
 
 

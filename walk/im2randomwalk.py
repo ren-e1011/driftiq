@@ -1,10 +1,10 @@
 from copy import deepcopy
 from random import choice
-from utils import _coord_move
+from utils.utils import _coord_move
 
 
 
-from envar import IM_SIZE, CAMERA_RES
+from configs.envar import IM_SIZE, CAMERA_RES
 import numpy as np
 
 class RandomWalk:

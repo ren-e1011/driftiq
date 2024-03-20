@@ -19,8 +19,8 @@ import numpy as np
 from torchvision import datasets
 
 FILEPATH = '/home/renaj/DIQ'
-RAND_ = "Data/RandomImWalk"
-INFO_ = "Data/InfoImWalk"
+RAND_ = "SavedData/RandomImWalk"
+INFO_ = "SavedData/InfoImWalk"
 
 # TODO rm
 RVT_FILEPATH = '/home/renaj/DIQ/RVTClass'
@@ -63,7 +63,7 @@ CAMERA_RES = (96,96,3)
 # default SENSOR.dtype is dtype('int64')
 # SENSOR = np.zeros(CAMERA_RES,dtype=int)
 
-CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'Data/'),train=True,download=True, transform=None)
+CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
 # 32
 IM_SIZE = CIFAR[0][0].size[0]
 N_CLASSES = 100 
@@ -92,7 +92,7 @@ ts_step_ev_repr_ms = 50
 height = CAMERA_RES[0]
 width = CAMERA_RES[1]
 
-EPSILON = 1e-10
+EPSILON = 1e-6
 
 # and config file variables from conf_preprocess/representation/stacked_hist.yaml,conf_preprocess/extraction/const_duration.yaml called by RVT/scripts/genx/README.md > For the Gen1 dataset ''' '''
 NUM_PROCESSES = 20
