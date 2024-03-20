@@ -45,6 +45,7 @@ parser.add_argument("--refrac_pd", type=int, default=0.0)
 parser.add_argument("--threshold", type=int, default=0.4)
 
 parser.add_argument("--frame_rate_hz",type=int,default=50)
+parser.add_argument("--frame_hw",type=tuple, default = (CAMERA_RES[0],CAMERA_RES[1]))
 
 parser.add_argument("--use_saved_data", type=bool, default = False)
 
@@ -114,7 +115,7 @@ def main(config: DictConfig):
     # ---------------------
     # load dataset - move to data module
     # ---------------------
-    dataset = DataSet(config,args)
+    dataset = DataSet(args,steps = args.timesteps,bins=config.model.backbone.input_channels)
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
     shuffle_dataset = True
     random_seed = 42
