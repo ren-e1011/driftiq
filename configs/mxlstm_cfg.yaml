@@ -1,0 +1,35 @@
+
+input: 
+  height: 96
+  width: 96
+  frame_intervals: 1
+
+matrix:
+  hidden_size: 3
+  region_shape: (1,1)
+  region_stride: (1,1)
+
+lstm:
+  type: 'LSTM'
+  n_layers: 1
+  embedding_size: 16
+
+resnet_model:
+  type: 'resnet18'
+  pretrain: True
+  freeze: []
+  add_last_fc: False
+  replace_first: False
+  replace_first_bn: True
+  add_se_layer: True
+
+
+
+features:
+  time: 'delay_norm'
+  coords: False 
+  normalize_relative: True
+
+
+output:
+  n_classes: 100 

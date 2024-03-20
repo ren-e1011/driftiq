@@ -1,0 +1,126 @@
+model:
+  backbone:
+    name: MaxViTRNN
+    compile:
+      enable: False
+      args:
+        mode: reduce-overhead
+    input_channels: 40 # mod from 20 for 40 timesteps 
+    enable_masking: False
+    partition_split_32: 2 
+    in_res_hw: (96,96) # mod
+    embed_dim: 64
+    dim_multiplier: [1, 2, 4, 8]
+    num_blocks: [1, 1, 1, 1]
+    T_max_chrono_init: [4, 8, 16, 32]
+    stem:
+      patch_size: 4
+    stage:
+      downsample:
+        type: patch
+        overlap: True
+        norm_affine: True
+      attention:
+        use_torch_mha: False
+        partition_size: [3,3] # mod from [3,5]
+        dim_head: 32
+        attention_bias: True
+        mlp_activation: gelu
+        mlp_gated: False
+        mlp_bias: True
+        mlp_ratio: 4
+        drop_mlp: 0
+        drop_path: 0
+        ls_init_value: 1e-5
+      lstm:
+        dws_conv: False
+        dws_conv_only_hidden: True
+        dws_conv_kernel_size: 3
+        drop_cell_update: 0
+  fpn:
+    name: PAFPN
+    compile:
+      enable: False
+      args:
+        mode: reduce-overhead
+    depth: 0.67 # round(depth * 3) == num bottleneck blocks
+    # stage 1 is the first and len(num_layers) is the last
+    in_stages: [2, 3, 4]
+    depthwise: False
+    act: "silu"
+  head:
+    name: YoloX
+    compile:
+      enable: False
+      args:
+        mode: reduce-overhead
+    depthwise: False
+    act: "silu"
+  postprocess:
+    confidence_threshold: 0.1
+    nms_threshold: 0.45
+
+
+reproduce:
+  seed_everything: null # Union[int, null]
+  deterministic_flag: False # Must be true for fully deterministic behaviour (slows down training)
+  benchmark: False # Should be set to false for fully deterministic behaviour. Could potentially speed up training.
+training:
+  precision: 16-mixed
+  max_epochs: 10000
+  exp_epochs: 25 # expected number of epochs - for testing - to run to completion 
+  max_steps: 400000
+  learning_rate: 0.0002
+  weight_decay: 0
+  gradient_clip_val: 1.0
+  limit_train_batches: 1.0
+  lr_scheduler:
+    use: True
+    total_steps: ${..max_steps}
+    pct_start: 0.005
+    div_factor: 25 # init_lr = max_lr / div_factor
+    final_div_factor: 10000 # final_lr = max_lr / final_div_factor (this is different from Pytorch' OneCycleLR param)
+validation:
+  limit_val_batches: 1.0
+  val_check_interval: null # Optional[int]
+  check_val_every_n_epoch: 1 # Optional[int]
+batch_size:
+  train: 8
+  eval: 8
+hardware:
+  num_workers:
+    train: 6
+    eval: 2
+  gpus: 0 # Either a single integer (e.g. 3) or a list of integers (e.g. [3,5,6])
+  dist_backend: "nccl"
+logging:
+  ckpt_every_n_epochs: 1
+  train:
+    metrics:
+      compute: false
+      detection_metrics_every_n_steps: null # Optional[int] -> null: every train epoch, int: every N steps
+    log_model_every_n_steps: 5000
+    log_every_n_steps: 500  
+    high_dim:
+      enable: True
+      every_n_steps: 5000
+      n_samples: 4
+  validation:
+    high_dim:
+      enable: True
+      every_n_epochs: 1
+      n_samples: 8
+wandb:
+  #   How to use:
+  #   1) resume existing wandb run:                                 set artifact_name & wandb_runpath
+  #   2) resume full training state in new wandb run:               set artifact_name
+  #   3) resume only model weights of checkpoint in new wandb run:  set artifact_name & resume_only_weights=True
+  #
+  #   In addition: you can specify artifact_local_file to load the checkpoint from disk.
+  #   This is for example required for resuming training with DDP.
+  wandb_runpath: null # WandB run path. E.g. USERNAME/PROJECTNAME/1grv5kg6
+  artifact_name: null # Name of checkpoint/artifact. Required for resuming. E.g. USERNAME/PROJECTNAME/checkpoint-1grv5kg6-last:v15
+  artifact_local_file: null # If specified, will use the provided local filepath instead of downloading it. Required if resuming with DDP.
+  resume_only_weights: False
+  group_name: ??? # Specify group name of the run
+  project_name: RVT
