@@ -56,7 +56,7 @@ class InfoWalk:
             
         return p 
 
-    def _init_params(self,mean_spikes,maxspikes):
+    def _init_params(self,mean_spikes,maxspikes, std_spikes):
         self.mu = mean_spikes 
         # rm +1 due to warning message at h+1
         self.hmax = int(mean_spikes + np.sqrt(mean_spikes)) 
@@ -180,6 +180,9 @@ class InfoWalk:
         hsa_sum = hsa_mx.sum()
 
         hsa = hsa_sum * self.H_s(prior_bar)
+        
+        # not in otto but in l & e sm addt S25 
+        hsa *= p_bar
         #p_bar = 1 - prior[x_t1]
 
         return x_t1, hsa
