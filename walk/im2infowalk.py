@@ -5,6 +5,7 @@ from utils.utils import _coord_move
 from configs.envar import IM_SIZE, CAMERA_RES, EPSILON
 from scipy.stats import poisson as Poisson_
 from warnings import warn 
+from scipy.special import kn
 
 class InfoWalk:
     # note that sensor size is in dimensions y,x for v2e input while prior was recorded in x,y
@@ -26,6 +27,8 @@ class InfoWalk:
         self.entropy = [-(p_prior * np.log2(p_prior)).sum()]
         self.p_prior = p_prior 
 
+        # from otto evaluate.parameters._defaults.py
+        self.lambda_over_dx = 2.0
         # why does otto initiate as -np.ones
         # 65
         # self.N = self.sensor_size[0] - self.im_size[0] + 1
@@ -34,6 +37,36 @@ class InfoWalk:
         # converts [[1,2],[1,3],[2,3]] to ((1, 1, 2), (2, 3, 3)) to slice an array 
         #walk_indices = tuple(zip(*self.walk))
 
+# otto sourcetracking._distance()
+        # norm = Euclidean
+    def _distance_mesh(self, origin: tuple = None, Ndim = 2, N = 96):
+        # Ndim = len(self.p_prior.shape) # 2
+        # N = self.p_prior[0] # 65
+        if origin is None:
+            origin = tuple(self.start_pos)
+
+        coord = np.mgrid[tuple([range(N)] * Ndim)] 
+        # relative -,+ distance to origin
+        for i in range(Ndim):
+            coord[i] -= origin[i]
+        d = np.zeros([N] * Ndim)
+
+        for i in range(Ndim):
+                d += (coord[i]) ** 2
+        d = np.sqrt(d)
+
+        #(65,65)
+        return d
+
+    def _mean_number_of_hits(self, distance):
+        assert hasattr(self,'mu')
+        distance = np.array(distance)
+        distance[distance == 0] = 1.0
+
+        mu = kn(0, distance / self.lambda_over_dx) / kn(0, 1)
+        
+        mu *= self.mu
+        return mu
     ## modified version of otto sourcetracking.py _Poisson(), _Poisson_unbounded
     def _Poisson(self, mu, h):
         assert hasattr(self, 'hmax')
@@ -65,23 +98,28 @@ class InfoWalk:
         #     # instead of raising hmax, ceiling of hmax 
         #     warn(f"Max spikes, {maxspikes}, is larger than mu + sqrt(mu), {self.hmax}.")
         #     self.hmax = maxspikes
-
+        d = self._distance_mesh()
+        mu = self._mean_number_of_hits(d)
+        mu[tuple(self.start_pos)] = 0.0
         ## snippet from otto sourcetracking.py _compute_p_Poisson() lines 363-393
         # probability of receiving hits Pr(h|xa,x')
         # (len(hit_list), 65, 65) - for each NW coordinate 
         # self.p_Poisson = np.zeros([self.hmax] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
-        self.p_Poisson = np.zeros([self.hmax])
+        self.p_Poisson = np.zeros([self.hmax]+[self.sensor_size[0]]+[self.sensor_size[1]])
+
+        # self.p_Poisson = np.zeros([self.hmax])
         # to test that the hmax threshold is not too high
         # if not square 
         # for square space == np.zeros([self.sensor_size[0] - self.im_size[0] + 1] * 2)
         # (65,65)
         # sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
-        sum_proba = 0.
+        sum_proba = np.zeros([self.sensor_size[0]] + [self.sensor_size[1]])
+        # sum_proba = 0.
         # range(1,hmax + 1) to include hmax and minimize hits at 1 - became unnecessarily? complicated
         self.hit_range = range(self.hmax)
         for h in self.hit_range:
             # (hmax, 65, 65)
-            self.p_Poisson[h] = self._Poisson(self.mu, h)
+            self.p_Poisson[h] = self._Poisson(mu, h)
 
             sum_proba += self.p_Poisson[h]
             # if h is less than hmax - 1 and reached a probability of close to 1, reduce hmax 
@@ -97,8 +135,8 @@ class InfoWalk:
         # for all mu,h, pmf should == 1 
         # if not np.all(sum_proba == 1.0):
                     # TODO mod check 
-        if not np.isclose(sum(self.p_Poisson[:self.hmax]), 1.0): 
-            warn(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
+        # if not np.isclose(sum(self.p_Poisson[:self.hmax]), 1.0): 
+        #     warn(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
             # sum_proba += self.p_Poisson[h]
 
 
@@ -110,11 +148,16 @@ class InfoWalk:
     def bayes_update(self,nhits: int, x_a: tuple):
         # TODO get a sense of how many hits meet or exceed self.hmax 
         nhits = min(nhits, self.hmax-1)
-        
-        self.p_prior *= self.p_Poisson[nhits]
+
+        self.p_prior[x_a] = 0 # epsilon? 
+
+        p_evidence = self.p_Poisson[nhits][x_a[0]:x_a[0]+self.p_prior.shape[0],x_a[1]:x_a[1]+self.p_prior.shape[1]]
+
+        # self.p_prior *= self.p_Poisson[nhits]
+        self.p_prior *= p_evidence
 
         # self.p_prior[x_a] = 1.0
-        self.p_prior[x_a] = EPSILON
+        
         self.p_prior /= self.p_prior.sum()
 
         # to validate, probe entropy reduction 
@@ -158,7 +201,8 @@ class InfoWalk:
         # -> -inf H_s at this location 
         # replace with 1 else how to calculate the entropy 
         # prior_bar[x_t1] = 1.0
-        prior_bar[x_t1] = EPSILON
+        # prior_bar[x_t1] = EPSILON
+        prior_bar[x_t1] = 0
         # renormalization
         prior_bar /= prior_bar.sum()
         
@@ -167,18 +211,20 @@ class InfoWalk:
 
         # self.p_Poisson was initiated with self.hmax. self.hmax could have been degraded 
         hsa_mx = np.zeros(len(self.p_Poisson))
+        p_likelihood = self.p_Poisson[...,x_t1[0]:x_t1[0]+prior_bar.shape[0]-1,x_t1[1]:x_t1[1]+prior_bar.shape[1]-1]
         # hsa_mx = np.zeros(self.hmax)
         # hsa_sum = 0.0
         # hit_range is initiated with hmax but could possibly skip values 
         for h in self.hit_range:            
-            # Pr(h | 𝜇)
+            # Pr(h | 𝜇) 
             # 𝜇 is the mean number of hits. It is a function of the Euclidean distance 𝑑=‖𝑥𝑠−𝑥𝑎‖2
             # mean_spikes = int(self.mean_spikes[x_t1])
             # factorial - might need decimal
             # poisson_h_xt1 = ((self.mu ** h) *(exp(-self.mu))) / (factorial(h))
             # H_h = self.H_s(prior_bar)
             # should never be neg? 
-            hsa_mx[h] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h]))
+            # hsa_mx[h] = np.maximum(0, np.sum(prior_bar * self.p_Poisson[h]))
+            hsa_mx[h] = np.maximum(0, np.sum(prior_bar * p_likelihood[h]))
             # hsa_sum += (poisson_h_xt1 * H_h)
 
         hsa_sum = hsa_mx.sum()
