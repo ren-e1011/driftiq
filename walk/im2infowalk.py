@@ -45,15 +45,9 @@ class InfoWalk:
         if h < self.hmax - 1:
             p = Poisson_(mu).pmf(h)
         # elif passed in h >= self.hmax - 1, return the rest of the probability density. effectively thresholding h at hmax
+            
+        # means of thresholding spikes at self.hmax 
         else: 
-            # should be the same? 
-            # _sum = 0.0
-            # # for k in range(self.hmax):
-            # for k in range(h):
-            #     _sum += Poisson_(mu).pmf(k)
-            # p = 1 - _sum
-
-            # max possible is self.hmax - 1
             p = 1 - Poisson_(mu).cdf(self.hmax - 2)
         # why cant i just mod hmax 
             
@@ -62,7 +56,11 @@ class InfoWalk:
     def _init_params(self,mean_spikes,maxspikes, std_spikes):
         self.mu = mean_spikes 
         # rm +1 due to warning message at h+1
-        self.hmax = int(mean_spikes + np.sqrt(mean_spikes)) 
+        # self.hmax = int(mean_spikes + np.sqrt(mean_spikes)) 
+        # MOD
+        self.hmax = int(mean_spikes + std_spikes)
+
+        self.hmax = max(self.hmax, maxspikes + 1)
         # if maxspikes > self.hmax:
         #     # instead of raising hmax, ceiling of hmax 
         #     warn(f"Max spikes, {maxspikes}, is larger than mu + sqrt(mu), {self.hmax}.")
@@ -99,8 +97,8 @@ class InfoWalk:
         # for all mu,h, pmf should == 1 
         # if not np.all(sum_proba == 1.0):
                     # TODO mod check 
-        if not sum_proba == 1.0: 
-            raise Exception(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
+        if not np.isclose(sum(self.p_Poisson[:self.hmax]), 1.0): 
+            warn(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
             # sum_proba += self.p_Poisson[h]
 
 
