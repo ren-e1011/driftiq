@@ -48,10 +48,13 @@ class InfoWalk:
         else: 
             # should be the same? 
             # _sum = 0.0
+            # # for k in range(self.hmax):
             # for k in range(h):
             #     _sum += Poisson_(mu).pmf(k)
             # p = 1 - _sum
-            p = 1 - Poisson_(mu).cdf(self.hmax - 1)
+
+            # max possible is self.hmax - 1
+            p = 1 - Poisson_(mu).cdf(self.hmax - 2)
         # why cant i just mod hmax 
             
         return p 
@@ -68,13 +71,14 @@ class InfoWalk:
         ## snippet from otto sourcetracking.py _compute_p_Poisson() lines 363-393
         # probability of receiving hits Pr(h|xa,x')
         # (len(hit_list), 65, 65) - for each NW coordinate 
-        self.p_Poisson = np.zeros([self.hmax] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
-        
+        # self.p_Poisson = np.zeros([self.hmax] + [self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
+        self.p_Poisson = np.zeros([self.hmax])
         # to test that the hmax threshold is not too high
         # if not square 
         # for square space == np.zeros([self.sensor_size[0] - self.im_size[0] + 1] * 2)
         # (65,65)
-        sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
+        # sum_proba = np.zeros([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
+        sum_proba = 0.
         # range(1,hmax + 1) to include hmax and minimize hits at 1 - became unnecessarily? complicated
         self.hit_range = range(self.hmax)
         for h in self.hit_range:
@@ -93,7 +97,9 @@ class InfoWalk:
          
 
         # for all mu,h, pmf should == 1 
-        if not np.all(sum_proba) == 1.0:
+        # if not np.all(sum_proba == 1.0):
+                    # TODO mod check 
+        if not sum_proba == 1.0: 
             raise Exception(f"_compute_p_Poisson: sum proba is {sum_proba}, not 1")
             # sum_proba += self.p_Poisson[h]
 
