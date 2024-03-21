@@ -1,5 +1,5 @@
 # wrapper for RVT > train.py
-from envar import *
+from configs.envar import *
 
 os.chdir(RVT_FILEPATH)
 
@@ -33,7 +33,7 @@ from callbacks.gradflow import GradFlowLogCallback
 from loggers.utils import get_ckpt_path
 
 
-from dataset import DataSet
+from Data.dataset import DataSet
 
 
 parser = argparse.ArgumentParser()
