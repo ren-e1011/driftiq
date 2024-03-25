@@ -105,17 +105,20 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
         imtraj = walker.walk[-len(walker.stepset) - 1:]
         # list of spike counts 
         # imtraj = imtraj instead of walker.walk
-        _, mean_spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
+        _, spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
         # initial hit. nhits last step morally equivalent to taking another step 
         # vec = choice(walker.stepset)
 
-        max_spikes = max(mean_spikes)
+        max_spikes = max(max(spikes),1)
+        std_spikes = np.std(spikes)
+        mean_spikes = int(np.mean(spikes))
 
-        mean_spikes = sum(mean_spikes)
-        mean_spikes /= len(walker.stepset)
-        mean_spikes = max(int(mean_spikes),1) 
 
-        walker._init_params(mean_spikes, max_spikes)
+        # mean_spikes = sum(mean_spikes)
+        # mean_spikes /= len(walker.stepset)
+        # mean_spikes = max(int(mean_spikes),1) 
+
+        walker._init_params(mean_spikes, max_spikes, std_spikes)
 
 
     # includes random steps start in nsteps 
@@ -123,7 +126,7 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
     prev_coords = walker.walk[-1]
     for step in range(start,nsteps):
         # in the event of traj_preset and info walk, will overwrite first moves with random steps
-        next_coords = traj_preset[step - start] if traj_preset else walker.coord_move()
+        next_coords = walker.coord_move(vec=traj_preset[step - start]) if traj_preset else walker.coord_move()
 
         if paused and step in paused:
             raw_events = v2ee.step(coords = next_coords)
@@ -142,7 +145,8 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
     # closes dvs file if saving etc
     v2ee.cleanup()
 
-    walk = walker.walk if not traj_preset else traj_preset
+    # walk = walker.walk if not traj_preset else traj_preset
+    walk = walker.walk
 
     if save:
         traj_dir = traj_path if save else None
