@@ -14,14 +14,13 @@ class InfoWalk:
         self.sensor_size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         self.im_size = (im_size, im_size) if isinstance(im_size, int) else im_size
 
-        assert self.sensor_size[0] == self.sensor_size[1]
         # (65,65)
-        # self.N =(self.sensor_size[0] - self.im_size[0] + 1 , self.sensor_size[1] - self.im_size[1] + 1) # int((Ngrid // 2) * 2 + 1) where Ngrid == CAMERA_RES[0] == CAMERA_RES[1] (96) to ensure odd value
-        self.N = self.sensor_size[0] - self.im_size[0] + 1
+        self.Ngrid =(self.sensor_size[0] - self.im_size[0] + 1 , self.sensor_size[1] - self.im_size[1] + 1) # int((Ngrid // 2) * 2 + 1) where Ngrid == CAMERA_RES[0] == CAMERA_RES[1] (96) to ensure odd value
+        self.N = max(self.Ngrid) # 65
 
         # init agent position x_a - center of sensor - unless restarting a walk at start_pos
         # self.start_pos = [self.sensor_size[0]//2 - self.im_size[0]//2, self.sensor_size[1]//2 - self.im_size[1]//2] if not start_pos else start_pos
-        self.start_pos = [self.N//2, self.N//2] if not start_pos else start_pos
+        self.start_pos = [self.Ngrid[0]//2, self.Ngrid[1]//2] if not start_pos else start_pos
         # save trajectory as list of NW coordinates
         self.walk = [self.start_pos]
         # possible directions 
@@ -30,13 +29,13 @@ class InfoWalk:
         # uniform prior...or random walk prior 
         if p_prior is None: 
             # p_prior = np.ones([self.sensor_size[0] - self.im_size[0] + 1] + [self.sensor_size[1] - self.im_size[1] + 1])
-            p_prior = np.ones([self.N,self.N])
+            p_prior = np.ones([self.N,self.N]) #TODO mod for nonsquare condition 
             p_prior = p_prior / p_prior.sum()
         self.entropy = [-(p_prior * np.log2(p_prior)).sum()]
         self.p_prior = p_prior 
 
         # from otto evaluate.parameters._defaults.py
-        # self.lambda_over_dx = 2.0
+        self.lambda_over_dx = 2.0 # for shunting expected spikes by distance 
         self.Ndim = len(self.p_prior.shape) #2
         # why does otto initiate as -np.ones
         # 65
@@ -50,7 +49,7 @@ class InfoWalk:
 # otto sourcetracking._distance()
         # norm = Euclidean
         # returns relative euclidean distance from the origin to each point on the search space 
-    def _distance_mesh(self, origin: tuple = None, Ndim: int = None, N = 65):
+    def _distance_mesh(self, origin: tuple = None, Ndim: int = None, N: int = None):
         Ndim = self.Ndim if not Ndim else Ndim # 2
         N = self.N if not N else N # 65
         origin = tuple(self.start_pos) if origin is None else origin # (32,32)
@@ -63,7 +62,7 @@ class InfoWalk:
         d = np.zeros([N] * Ndim)
 
         for i in range(Ndim):
-                d += (coord[i]) ** 2
+            d += (coord[i]) ** 2
         d = np.sqrt(d)
 
         #(65,65)
@@ -75,11 +74,12 @@ class InfoWalk:
             assert hasattr(self,'mu')
             mu_spikes = self.mu
         distances = np.array(distances)
-        distances[distances == 0] = 1.0
-        # mu = kn(0, distance / self.lambda_over_dx) / kn(0, 1)
+        distances[distances == 0] = 1.0 # from 0 to 1 to avoid inf value in next step. will set to 0 in _init_params
+        
+        # expected spikes decreases with distance
+        mu = kn(0, distances / self.lambda_over_dx) / kn(0, 1) # TODO is this the appropriate shunting computation for a sourceless search 
         # mu *= self.mu
-
-        mu = distances * mu_spikes
+        mu *= mu_spikes
         return mu
     ## modified version of otto sourcetracking.py _Poisson(), _Poisson_unbounded
     def _Poisson(self, mu, h):
@@ -126,10 +126,11 @@ class InfoWalk:
         # logic from _compute_p_Poisson to be used for computing the posterior squared on each element of p_prior 
         size = 2 * self.N - 1 # 129 
         origin = [self.N] * self.Ndim # (65,65)
+        origin = tuple(origin)
         distance_mx = self._distance_mesh(origin=origin,N=size)
         mu = self._mean_number_of_hits(distance_mx, self.mu)
-        mu[tuple(self.start_pos)] = self.leaving_p # start position has zero probability TODO mod leaving probability 
-        self.p_Poisson = np.zeros([self.hmax]+ [size] * self.Ndim) # (hmax, 129, 129)
+        mu[origin] = self.leaving_p # start position has zero probability TODO mod leaving probability 
+        self.p_Poisson = np.zeros([self.hmax] + [size] * self.Ndim) # (hmax, 129, 129)
 
         # self.p_Poisson = np.zeros([self.hmax])
         # to test that the hmax threshold is not too high
@@ -155,7 +156,7 @@ class InfoWalk:
                     self.hmax = h
 
         # by definition p_Poisson at> N (origin) = 0 
-        self.p_Poisson[:, origin[0],origin[1]] = 0.0 # not self.leaving_p 
+        self.p_Poisson[:, origin] = 0.0 # not self.leaving_p 
          
 
         # for all mu,h, pmf should == 1 
@@ -186,16 +187,18 @@ class InfoWalk:
 
         post_index = np.array([self.N - 1] * self.Ndim) - x_a  # (64,64) - (x_a[0],x_a[1])
         # p_evidence = self.p_Poisson[nhits][x_a[0]:x_a[0]+self.p_prior.shape[0],x_a[1]:x_a[1]+self.p_prior.shape[1]]
-        p_evidence = self.p_Poisson[:,post_index[0]:post_index[0]+self.N,post_index[1]:post_index[1]+self.N] # (hmax,65,65)
+        p_evidence = self.p_Poisson[nhits,post_index[0]:post_index[0]+self.N,post_index[1]:post_index[1]+self.N] # (hmax,65,65)
 
         # self.p_prior *= self.p_Poisson[nhits]
         # for each h 
         self.p_prior *= p_evidence
 
-        # self.p_prior[x_a] = 1.0
-        
-        self.p_prior /= self.p_prior.sum()
+        self.p_prior[self.p_prior <= EPSILON] = 0.0
+        self.p_prior /= max(self.p_prior.sum(),EPSILON)
 
+    
+        # self.p_prior[x_a] = 1.0
+        # why the second condition
         # to validate, probe entropy reduction 
         self.entropy.append(self.H_s())
 
@@ -240,7 +243,7 @@ class InfoWalk:
         # prior_bar[x_t1] = EPSILON
         prior_bar[x_t1] = self.leaving_p
         # renormalization
-        prior_bar /= prior_bar.sum()
+        prior_bar /= max(prior_bar.sum(),EPSILON) ## problematic
         
         # compute hit probability 
         # == np.zeros(self.hmax)
@@ -267,7 +270,7 @@ class InfoWalk:
 
         hsa = hsa_sum * self.H_s(prior_bar)
         
-        # not in otto but in l & e sm addt S25 
+        # not in otto but in l & e sm addt S25 ????
         hsa *= p_bar
         #p_bar = 1 - prior[x_t1]
 
@@ -313,7 +316,6 @@ class InfoWalk:
                 if entropy_a < min_ent[1]:
                     # convert back to list form for coord_next 
                     min_ent = (list(x_a_next), entropy_a)
-
         return min_ent[0]
     
 
