@@ -1,10 +1,12 @@
 # wrapper for RVT > train.py
-from configs.envar import *
 
-os.chdir(RVT_FILEPATH)
+import os
+from configs.envar import FILEPATH, CAMERA_RES, BATCH_SIZE, TRAIN_SPLIT_SZ
+os.chdir(FILEPATH)
+import yaml
 
 # in envar 
-# import numpy as np
+import numpy as np
 
 # RVT train.py and https://pytorch.org/docs/master/multiprocessing.html?highlight=sharing%20strategy#sharing-strategies
 # and start of https://pytorch.org/docs/stable/notes/cuda.html
@@ -16,7 +18,8 @@ from torch.backends import cuda, cudnn
 cuda.matmul.allow_tf32 = True
 cudnn.allow_tf32 = True
 
-import argparse
+# import argparse
+import configargparse as argparse
 
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from pytorch_lightning import Trainer
@@ -28,18 +31,17 @@ from pytorch_lightning.strategies import DDPStrategy
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import DataLoader
 
-from callbacks.custom import get_ckpt_callback
-from callbacks.gradflow import GradFlowLogCallback
-from loggers.utils import get_ckpt_path
-
 
 from Data.dataset import DataSet
+
+from mxlstm_litmod import MxLSTMClassifier
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--walk", type=str, default='random')
 
-parser.add_argument("--n_frames",type=int,default=300)
+parser.add_argument("--model", type=str, default='matrixlstm', choices=['matrixlstm','rvt'])
+
 parser.add_argument("--timesteps", type=int, default=40)
 parser.add_argument("--refrac_pd", type=int, default=0.0)
 parser.add_argument("--threshold", type=int, default=0.4)
@@ -48,32 +50,31 @@ parser.add_argument("--frame_rate_hz",type=int,default=50)
 parser.add_argument("--frame_hw",type=tuple, default = (CAMERA_RES[0],CAMERA_RES[1]))
 
 parser.add_argument("--use_saved_data", type=bool, default = False)
+parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
-parser.add_argument("--testing", type=bool, default=False)
+parser.add_argument("--testing", type=bool, default=True)
 
-parser.add_argument("--run_name", type=str, default = 'cutedges40ts40bin96sensorallspikes')
+parser.add_argument("--run_name", type=str, default = 'mxlstmvitv0')
 
 args = parser.parse_args()
 
-
-import hydra
 from omegaconf import DictConfig, OmegaConf
-from modules.rnnclass_module import RNNClassModule
-from torch import multiprocessing
 
+def main(config:DictConfig):
+    # with open(os.path.join(os.getcwd(),args.config_relpath)) as f:
+    #     config = yaml.load(f,Loader=yaml.FullLoader)
 
+    
 
-@hydra.main(config_path='config', config_name='train', version_base='1.2')
-def main(config: DictConfig):
-    # does not seem to be working 
-    torch.cuda.memory._record_memory_history()
+    # ---------------------
+    # Model
+    # ---------------------
+    module = MxLSTMClassifier(config)
 
-    # snippet from RVT.train
     # ---------------------
     # DDP
     # ---------------------
-    gpu_config = config.hardware.gpus
-    gpus = OmegaConf.to_container(gpu_config) if OmegaConf.is_config(gpu_config) else gpu_config
+    gpus = config.hardware.gpus
     gpus = gpus if isinstance(gpus, list) else [gpus]
     distributed_backend = config.hardware.dist_backend
     assert distributed_backend in ('nccl', 'gloo'), f'{distributed_backend=}'
@@ -81,16 +82,7 @@ def main(config: DictConfig):
                            find_unused_parameters=False,
                            gradient_as_bucket_view=True) if len(gpus) > 1 else None
     
-
-    
     # ---------------------
-    # Model
-    # ---------------------
-    # module = fetch_model_module(config=config) MOD 
-    module = RNNClassModule(config)
-    
-
-        # ---------------------
     # Logging and Checkpoints
     # ---------------------
     # logger = get_wandb_logger(config) MOD 
@@ -100,22 +92,16 @@ def main(config: DictConfig):
         logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
     else:
         logger = None
-    
-    ckpt_path = None
 
-    if config.wandb.artifact_name is not None:
-        ckpt_path = get_ckpt_path(logger, wandb_config=config.wandb)
-    
-    if ckpt_path is not None and config.wandb.resume_only_weights:
-        print('Resuming only the weights instead of the full training state')
-        module = module.load_from_checkpoint(str(ckpt_path), **{'full_config': config})
-        ckpt_path = None
-    # end snippet
-
-    # ---------------------
+     # ---------------------
     # load dataset - move to data module
     # ---------------------
-    dataset = DataSet(args,steps = args.timesteps,bins=config.model.backbone.input_channels)
+    dataset = DataSet(walk = args.walk, 
+                      architecture= config.model.name,
+                      steps = config.time.steps, bins=config.time.bins, 
+                      refrac_pd=config.emulator.refrac_pd, threshold= config.emulator.threshold,
+                      use_saved_data= args.use_saved_data,
+                      frame_hw = (config.input.height,config.input.width))
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
     shuffle_dataset = True
     random_seed = 42
@@ -140,30 +126,13 @@ def main(config: DictConfig):
     # no need to reshuffle validation 
     validation_loader = DataLoader(dataset, batch_size=BATCH_SIZE,
                                                     sampler=val_sampler,num_workers=0)
-    # end snippet 
-    ## end move to data module
     
-    # pl_module = RNNClassModule(config)
-    # snippets from https://docs.wandb.ai/tutorials/lightning, 
-    # https://docs.wandb.ai/guides/integrations/lightning#logger-arguments - see for checkpoint load
-
-    # mod testing
-    # if not args.testing:
-    #     wandb_logger = WandbLogger(project='diq',name= args.run_name,job_type='train', log_model='all')
-    # else:
-    #     wandb_logger = None
-
-    # ---------------------
+     # ---------------------
     # Callbacks and Misc
     # ---------------------
     callbacks = list()
-    # callbacks.append(get_ckpt_callback(config))
-    callbacks.append(GradFlowLogCallback(config.logging.train.log_model_every_n_steps))
     if config.training.lr_scheduler.use:
         callbacks.append(LearningRateMonitor(logging_interval='step'))
-    # if config.logging.train.high_dim.enable or config.logging.validation.high_dim.enable:
-    #     viz_callback = get_viz_callback(config=config)
-    #     callbacks.append(viz_callback)
     callbacks.append(ModelSummary(max_depth=2))
     # see RVT > callbacks > custom > get_ckpt_callback 
     ckpt_filename = f"{args.run_name}_"+'epoch={epoch:03d}-step={step}- ={ :.2f}'
@@ -177,7 +146,6 @@ def main(config: DictConfig):
     early_stop_callback = EarlyStopping(monitor="val_loss")
     callbacks.append(early_stop_callback)
 
-    # snippet from RVT.train
      # ---------------------
     # Training
     # ---------------------
@@ -206,7 +174,7 @@ def main(config: DictConfig):
         precision=config.training.precision,
         max_epochs=config.training.max_epochs if not args.testing else 2,
         max_steps=config.training.max_steps,
-        # "auto" is default. None is not an acceptable strategy 
+        # "auto" is default. None is not an acceptable strategy - TODO DDP
         strategy=strategy if strategy is not None else "auto",
         sync_batchnorm=False if strategy is None else True,
         benchmark=config.reproduce.benchmark,
@@ -218,17 +186,6 @@ def main(config: DictConfig):
 
     trainer.fit(module, train_loader, validation_loader)
 
-    torch.cuda.memory._dump_snapshot(f"../logs/{args.run_name}_memsnapshot.pickle")
-
-
 if __name__ == "__main__":
-    main()
-    # config = OmegaConf.load('./config/train.yaml')
-    # https://stackoverflow.com/questions/72779926/gunicorn-cuda-cannot-re-initialize-cuda-in-forked-subprocess
-    # multiprocessing.set_start_method('spawn')
-    # p = multiprocessing.Process(target=main, daemon=True)
-    # p.start()
-    # p.join()
-    # main()
-
-    
+    conf = OmegaConf.load(os.path.join(os.getcwd(),args.config_relpath))
+    main(conf)

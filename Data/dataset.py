@@ -1,23 +1,22 @@
-from envar import *
+from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, CIFAR, FPS 
 
 import os
 import pickle
 import h5py
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from datagenerator import im2events
-from preprocess import construct_x, cutEdges
+from Data.datagenerator import im2events
+from utils.preprocess import construct_x
 
-from frames2events_emulator import StatefulEmulator
 
 
 class DataSet(Dataset):
 
-    def __init__(self, args, steps, bins):
-        self.walk = args.walk
+    def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw):
+        self.architecture = architecture
+        self.walk = walk
         self.events_path = RAND_EVENTSDIR if self.walk == 'random' else INFO_EVENTSDIR 
         self.traj_path = RAND_TRAJPATH if self.walk == 'random' else INFO_TRAJPATH
 
@@ -26,14 +25,14 @@ class DataSet(Dataset):
         # number of timebins 
         self.j_timebins = bins
 
-        self.rp = args.refrac_pd
-        self.thres = args.threshold
-        self.fps = args.frame_rate_hz
+        self.rp = refrac_pd
+        self.thres = threshold
+        self.fps = FPS
 
-        self.use_saved = args.use_saved_data
+        self.use_saved = use_saved_data
         # CAMERA_RES
-        self.frame_h = args.frame_hw[0]
-        self.frame_w = args.frame_hw[1]
+        self.frame_h = frame_hw[0]
+        self.frame_w = frame_hw[1]
 
         
 
@@ -82,7 +81,9 @@ class DataSet(Dataset):
                                    start_pos = start_pos, 
                                     frame_h = self.frame_h, frame_w = self.frame_w)
         
-        return events, imtraj 
+        
+        # TODO verify nevents => length in /home/renaj/DIQ/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader
+        return events, nevents, imtraj 
 
     def __len__(self):
         # returns 3125 - 50k/batch_size=16
@@ -104,7 +105,8 @@ class DataSet(Dataset):
         x = np.concatenate(x, axis=0)
         x = torch.tensor(x)
 
-        x = construct_x(x, step_t = 1/FPS, bins = self.j_timebins, height = self.frame_h, width = self.frame_w)
+        if self.architecture == 'rvt':
+            x = construct_x(x, step_t = 1/self.fps, bins = self.j_timebins, height = self.frame_h, width = self.frame_w)
 
         
         return x
@@ -113,16 +115,16 @@ class DataSet(Dataset):
 
         # t_getx_start = t_getsample_start = time.time()
         # self.k_events returns a list of arrays of len(timestamps), each of n x 4 dimensions
-        events, traj = self.get_k_events(index) if not self.use_saved else self.get_events(index)
+        events, nevents, traj = self.get_k_events(index) if not self.use_saved else self.get_events(index)
 
-        x = self.preprocess(events, traj,index)
+        x = self.preprocess(events, traj,index) # different preprocessing for mxlstm
         
         # y is a torch.uint8
         _,y = CIFAR[index]
         # to retain [19] not a tensor with shape 19 
         y = torch.tensor([y], dtype=torch.int)
 
-        return x,y
+        return x, nevents, y
 
 from omegaconf import DictConfig, OmegaConf
 if __name__ == "__main__":

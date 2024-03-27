@@ -12,8 +12,8 @@ from omegaconf import DictConfig
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from pytorch_lightning import LightningModule
 
-from models.classification.classifier import Classifier
-from configs.envar import * 
+# from models.classification.classifier import Classifier
+from configs.envar import IM_SIZE, CAMERA_RES, N_CLASSES
 
 from torch.nn.functional import one_hot, log_softmax
 from torch.optim.lr_scheduler import LinearLR, ExponentialLR, ConstantLR, SequentialLR
@@ -25,25 +25,42 @@ torch.set_float32_matmul_precision('high')
 
 
 
+from matrixlstm.classification.models.net_matrixlstm_vit import MatrixLSTMViT
 
-class RNNClassModule(LightningModule):
+
+class MxLSTMClassifier(LightningModule):
     def __init__(self,
-                 config: DictConfig,
+                 config,
                  num_classes: int = 100
                  ):
         super().__init__()
+        
 
         # ? config TODO mod 
         self.save_hyperparameters()
 
+        
         # abstracts both the RVT + classifier head
-        self.model = Classifier(config)
+
+
+        self.model = MatrixLSTMViT(input_shape=(config.input.height,config.input.width), 
+                                   num_classes=config.output.n_classes, 
+                                   embedding_size=config.lstm.embedding_size, 
+                                      matrix_hidden_size= config.matrix.hidden_size, 
+                                      matrix_region_shape=config.matrix.region_shape, 
+                                      matrix_region_stride=config.matrix.region_stride,
+                                      matrix_add_coords_feature=config.features.add_coords,
+                                      matrix_add_time_feature_mode= config.features.time,
+                                      matrix_normalize_relative=config.features.normalize_relative,
+                                      matrix_lstm_type=config.lstm.type,
+                                      pretrainedvit_base=config.path.pretrainedvit,
+                                      cifar100labelpath=config.path.cifar100label)
         # crossentropy loss combines logsoftmax + bceloss 
-        self.loss = CrossEntropyLoss()
+        # self.loss = CrossEntropyLoss()
 
-        self.num_classes = num_classes  
+        # self.num_classes = num_classes  
 
-        self.accuracy = Accuracy(task="multiclass", num_classes=self.num_classes)
+        self.accuracy = Accuracy(task="multiclass", num_classes=config.output.n_classes)
 
         self.train_config = config.training
 
@@ -93,47 +110,47 @@ class RNNClassModule(LightningModule):
     
 
     def _get_preds_loss_accuracy(self, batch):
-        # t_pla_s = time.time()
-        X, y = batch
-
-        y_oh = one_hot(y.to(torch.int64),self.num_classes)
-        # (batch_size,num_classes)
-        y_oh = y_oh.squeeze().to(torch.float)
-
-        yhat_logits = self.model(X)
-
-        loss = self.loss(yhat_logits,y_oh)
-
+        X, nevents, y = batch
+        log_proba = self.model(X, nevents)
         labels = y.squeeze().to(torch.float)
-        yhat = torch.argmax(yhat_logits,dim=1)
-        yhat = yhat.to(torch.float)
-        # take sum of all batches and divide by batch_size
+        # nll loss 
+        loss = self.model.loss(log_proba, labels)
 
-        # crossentropy loss combines logsoftmax + bceloss 
-        # preds, target
-        # RuntimeError: Encountered different devices in metric calculation (see stacktrace for details). This could be due to the metric class not being on the same device as input. Instead of `metric=MulticlassAccuracy(...)` 
-        # try to do `metric=MulticlassAccuracy(...).to(device)` where device corresponds to the device of the input.
+        preds = torch.argmax(log_proba, dim=-1)
+        acc = self.accuracy(preds, labels)
+
+        # y_oh = one_hot(y.to(torch.int64),self.num_classes)
+        # # (batch_size,num_classes)
+        # y_oh = y_oh.squeeze().to(torch.float)
+
+        # yhat_logits = self.model(X)
+
+        # loss = self.loss(yhat_logits,y_oh)
+
+        # labels = y.squeeze().to(torch.float)
+        # yhat = torch.argmax(yhat_logits,dim=1)
+        # yhat = yhat.to(torch.float)
+        # # take sum of all batches and divide by batch_size
+
+        # # crossentropy loss combines logsoftmax + bceloss 
+        # # preds, target
+        # # RuntimeError: Encountered different devices in metric calculation (see stacktrace for details). This could be due to the metric class not being on the same device as input. Instead of `metric=MulticlassAccuracy(...)` 
+        # # try to do `metric=MulticlassAccuracy(...).to(device)` where device corresponds to the device of the input.
         
-        acc = self.accuracy(yhat,labels)
-        # t_pla_e = time.time()
-        # print('Time to calculate preds, return loss', t_pla_e - t_pla_s)
-        return yhat, loss, acc
+        # acc = self.accuracy(yhat,labels)
+
+        return preds, loss, acc
 
     def predict_step(self, batch, batch_idx):
-        # t_pred_s = time.time()
         X, y = batch
         yhat, loss = self.model(X,y)
-        # t_pred_e = time.time()
-        # print('Time to predict step', t_pred_e - t_pred_s)
+
         return yhat 
     
     def validation_step(self, batch, batch_idx):
         '''used for logging metrics'''
-        # t_valsample_start = time.time()
         preds, loss, acc = self._get_preds_loss_accuracy(batch)
-        # t_valsample_end = time.time()
 
-        # print('Validation step', t_valsample_end - t_valsample_start)
         # Log loss and metric
         # prog_bar = True? 
         self.log('val_loss', loss, prog_bar=True)
@@ -143,12 +160,8 @@ class RNNClassModule(LightningModule):
     # def training_step(self, batch: Any, batch_idx: int) -> STEP_OUTPUT:
     def training_step(self, batch, batch_idx):
         '''needs to return a loss from a single batch'''
-        # t_samplestep_s = time.time()
         _, loss, acc = self._get_preds_loss_accuracy(batch)
-        # t_samplestep_e = time.time()
-        # Log loss and metric
-        # logger = True?
-        # print('Training step,', t_samplestep_e - t_samplestep_s)
+
         self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
         self.log('train_accuracy', acc, on_step=True, on_epoch=True, logger=True)
         

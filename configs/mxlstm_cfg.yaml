@@ -1,27 +1,35 @@
+model: 
+  name: mxlstmvit
 
 input: 
   height: 96
   width: 96
   frame_intervals: 1
+  
+
+time:
+  fps: 50
+  steps: 40
+  bins: 40
+
+emulator:
+  refrac_pd: 0.0
+  threshold: 0.4
+
 
 matrix:
   hidden_size: 3
-  region_shape: (1,1)
-  region_stride: (1,1)
+  region_shape: [1,1]
+  region_stride: [1,1]
+  
+path:
+  pretrainedvit: 'google/vit-base-patch16-224'
+  cifar100label:  '/home/renaj/DIQ/Data/cifar100_labelxix/'
 
 lstm:
   type: 'LSTM'
   n_layers: 1
   embedding_size: 16
-
-resnet_model:
-  type: 'resnet18'
-  pretrain: True
-  freeze: []
-  add_last_fc: False
-  replace_first: False
-  replace_first_bn: True
-  add_se_layer: True
 
 
 
@@ -29,7 +37,58 @@ features:
   time: 'delay_norm'
   coords: False 
   normalize_relative: True
+  add_coords: False
 
 
 output:
   n_classes: 100 
+
+reproduce:
+  seed_everything: null # Union[int, null]
+  deterministic_flag: False # Must be true for fully deterministic behaviour (slows down training)
+  benchmark: False # Should be set to false for fully deterministic behaviour. Could potentially speed up training.
+training:
+  precision: 16-mixed
+  max_epochs: 10000
+  exp_epochs: 25 # expected number of epochs - for testing - to run to completion 
+  max_steps: 400000
+  learning_rate: 0.0002
+  weight_decay: 0
+  gradient_clip_val: 1.0
+  limit_train_batches: 1.0
+  lr_scheduler:
+    use: True
+    total_steps: ${..max_steps}
+    pct_start: 0.005
+    div_factor: 25 # init_lr = max_lr / div_factor
+    final_div_factor: 10000 # final_lr = max_lr / final_div_factor (this is different from Pytorch' OneCycleLR param)
+validation:
+  limit_val_batches: 1.0
+  val_check_interval: null # Optional[int]
+  check_val_every_n_epoch: 1 # Optional[int]
+batch_size:
+  train: 8
+  eval: 8
+hardware:
+  num_workers:
+    train: 6
+    eval: 2
+  gpus: 0 # Either a single integer (e.g. 3) or a list of integers (e.g. [3,5,6])
+  dist_backend: "nccl"
+logging:
+  ckpt_every_n_epochs: 1
+  train:
+    metrics:
+      compute: false
+      detection_metrics_every_n_steps: null # Optional[int] -> null: every train epoch, int: every N steps
+    log_model_every_n_steps: 5000
+    log_every_n_steps: 500  
+    high_dim:
+      enable: True
+      every_n_steps: 5000
+      n_samples: 4
+  validation:
+    high_dim:
+      enable: True
+      every_n_epochs: 1
+      n_samples: 8
