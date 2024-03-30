@@ -32,7 +32,8 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import DataLoader
 
 
-from Data.dataset import DataSet
+from Data.dataset import DataSet, Collator
+
 
 from mxlstm_litmod import MxLSTMClassifier
 
@@ -121,12 +122,15 @@ def main(config:DictConfig):
     val_sampler = SubsetRandomSampler(val_indices)
     
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
+    collate_func = Collator()
     train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, 
-                                            sampler=train_sampler, num_workers=0)
+                                            sampler=train_sampler, num_workers=0, collate_fn=collate_func)
     # no need to reshuffle validation 
-    validation_loader = DataLoader(dataset, batch_size=BATCH_SIZE,
-                                                    sampler=val_sampler,num_workers=0)
     
+    validation_loader = DataLoader(dataset, batch_size=BATCH_SIZE,
+                                                    sampler=val_sampler,num_workers=0, collate_fn=collate_func)
+    
+    # test_collate_func = Collator(test=True) for test_loader without labels
      # ---------------------
     # Callbacks and Misc
     # ---------------------

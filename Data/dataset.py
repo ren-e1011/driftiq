@@ -11,6 +11,43 @@ from Data.datagenerator import im2events
 from utils.preprocess import construct_x
 
 
+from torch.nn.utils.rnn import pad_sequence
+
+class Collator(object):
+    '''
+    Yields a batch from a list of Items
+    Args:
+    test : Set True when using with test data loader. Defaults to False
+    percentile : Trim sequences by this percentile
+    '''
+    def __init__(self,test=False,percentile=100):
+        self.test = test
+        # self.percentile = percentile # not important for our use case where we are going to lob off all padding using returned lengths
+    def __call__(self, batch):
+        if not self.test:
+            x, lengths, y = zip(*batch)
+            # lengths is a nested list of events for each timestep in each sample
+            sample_lengths = [sum(lens) for lens in lengths]
+            # x = [item[0] for item in batch]
+            # lengths = [item[1] for item in batch]
+            # y = [item[2] for item in batch]
+        else:
+            x, lengths = zip(*batch)
+            sample_lengths = [sum(lens) for lens in lengths]
+            # x = [item[0] for item in batch]
+            # lengths = [item[1] for item in batch]
+
+        max_len = max(sample_lengths)
+        # lens = [len(x) for x in data]
+        # max_len = np.percentile(lens,self.percentile)
+        x = pad_sequence(x,batch_first=True) # automatically pads to max_len
+        # x = torch.tensor(x,dtype=torch.long) 
+        if not self.test:
+            y = torch.tensor(y,dtype=torch.int) # float32 to int
+            return [x,lengths, y]
+        return [x, lengths]
+
+
 
 class DataSet(Dataset):
 
@@ -102,14 +139,23 @@ class DataSet(Dataset):
         
         # to collapse list of timesteps 
         # to be swapped out with architecture
+        
         x = np.concatenate(x, axis=0)
         x = torch.tensor(x)
 
         if self.architecture == 'rvt':
-            x = construct_x(x, step_t = 1/self.fps, bins = self.j_timebins, height = self.frame_h, width = self.frame_w)
+            to_frame = True
+            
+            x = construct_x(x, to_frame = to_frame, step_t = 1/self.fps, bins = self.j_timebins, height = self.frame_h, width = self.frame_w)
+
+        
+        else:
+            to_frame = False
 
         
         return x
+    
+    
 
     def __getitem__(self,index):
 
