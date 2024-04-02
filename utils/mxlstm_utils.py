@@ -121,16 +121,34 @@ def n_rf_events_cuda(rf_idx, lengths, num_rf):
     batch_size = rf_idx.size(0)
     event_size = rf_idx.size(1)
 
+    shape_y = lengths.shape[1]
+
     # Create a tensor to hold output counts
-    rf_events_count = torch.zeros(batch_size, num_rf, dtype=torch.long)
+    rf_events_count = torch.zeros(batch_size, num_rf)
 
     
 
-    step_size = num_rf / rf_idx 
+    # step_size = rf_idx // num_rf
 
     for batch_i in range(batch_size):
-        for rf_i in rf_idx:
-            rf_events_count[batch_i,rf_i] = sum(lengths[batch_i][rf_i:rf_i:step_size])
+        rf_coordlist = rf_idx[batch_i]
+        for rf_i in rf_coordlist:
+            rf_ = int(rf_i) # rf_i.item()
+            # rf_events_count[batch_i,rf_i] = sum(lengths[batch_i][rf_i:rf_i:step_size])
+            x,y = rf_ % shape_y, rf_ // shape_y
+            rf_events_count[batch_i][rf_] += lengths[batch_i,x,y]
+
+    # # ChatGPT translation of matrix_helpers_kernel.cu n_rf_events_cuda_kernel
+    # for batch_id in range(batch_size):
+    #     for e in range(event_size):
+    #         if e >= lengths[batch_id]:
+    #             break
+    #         read_index = batch_id * event_size + e
+    #         rf_id = rf_idx[read_index].item()  # Assuming rf_idx is a PyTorch tensor
+    #         if rf_id == -1:
+    #             continue
+    #         write_index = batch_id * num_rf + rf_id
+    #         rf_events_count[write_index] += 1
 
 
 
