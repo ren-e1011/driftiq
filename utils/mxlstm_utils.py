@@ -4,20 +4,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pandas import Series
+from itertools import chain
 
 # cuts the padded events or event coordinates to the counts of events recorded
-def unpad_events(events, lengths):
+# returns shape of batch_size * timesteps * values
+# if want batch_size by values need to concat
+def strip_events(events, lengths):
 
-    
-
-    batch_size = len(events)
-    assert len(lengths) == batch_size
+    batch_size = len(lengths)
+    assert len(events) == batch_size
     nsteps = len(lengths[0])
     shorn_events = [[] * nsteps] * batch_size
     
     for i, lenlist in enumerate(lengths):
 # tolist for tensor items as list
-        shorn_events[i] = [events[i][i*j*nsteps:i*j*nsteps + l].tolist() for j,l in enumerate(lenlist)] # item not to keep tensor, grad 
+        shorn_events[i] = [events[i][j * nsteps: j * nsteps + l].tolist() for j,l in enumerate(lenlist)] # item not to keep tensor, grad 
 
     return shorn_events
 
@@ -30,7 +31,7 @@ def nevents_x_coord(coords, lengths, out_w, out_h):
     # for i in lengths:
     #     events_i = [events[i][:l] for l in lengths[i]]
     
-    shorn_coords = unpad_events(list(coords),lengths)
+    shorn_coords = strip_events(list(coords),lengths)
     # there has got to be a more elegant way to do this 
     for i,batch_i in enumerate(shorn_coords):
         for coord_xy_list in batch_i:
@@ -50,7 +51,7 @@ def nevents_x_coord(coords, lengths, out_w, out_h):
 #This Python version uses the torch.cuda.threadIdx.x to get the thread index within a block. 
 #Make sure you have set up your PyTorch CUDA environment properly for this translation to work. 
 #Additionally, you need to handle distributed training if applicable, using torch.distributed.get_rank() and torch.distributed.get_world_size() functions.
-def group_rf_bounded_cuda_kernel(features, rf_ids, lengths, rf_offsets, rf_lengths, groups, gr_last_id, gr_batch_id, gr_h, gr_w, out_w, batch_size, event_size, feature_size, num_rf, new_batch_size, max_rf_events):
+def group_rf_bounded_cuda_kernel(features, rf_ids, lengths, nevents_x_step, rf_offsets, rf_lengths, groups, gr_last_id, gr_batch_id, gr_h, gr_w, out_w, batch_size, event_size, feature_size, num_rf, new_batch_size, max_rf_events):
     batch_id = torch.distributed.get_rank() * torch.distributed.get_world_size() + torch.cuda.threadIdx.x
 
     if batch_id < batch_size:
@@ -114,29 +115,37 @@ def group_rf_gpu():
     return
 
 
+def flat_3to2dlist(mx):
+    return [list(chain(*mx[i])) for i in range(len(mx))]
 
 # number of events in each receptive field of every sample 
 # also replaces n_rf_events_cuda_kernel
-def n_rf_events_cuda(rf_idx, lengths, num_rf):
+def n_rf_events_cuda(rf_idx, lengths, nevents_x_step, num_rf):
+    
     batch_size = rf_idx.size(0)
     event_size = rf_idx.size(1)
 
     shape_y = lengths.shape[1]
 
+    if nevents_x_step: # if not None
+        rf_idx = strip_events(rf_idx,nevents_x_step) # ** so as not to confuse padded events for events at 0,0
+        # sum([len(rf) for rf in rf_idx]) == lengths.sum()
+        rf_idx = flat_3to2dlist(rf_idx)
+
     # Create a tensor to hold output counts
     rf_events_count = torch.zeros(batch_size, num_rf)
 
-    
-
     # step_size = rf_idx // num_rf
 
+    # rf_idx in batch_size * nsteps 
     for batch_i in range(batch_size):
         rf_coordlist = rf_idx[batch_i]
+        # len(rf_coordlist) == sum(nevents_x_step[batch_i])
         for rf_i in rf_coordlist:
             rf_ = int(rf_i) # rf_i.item()
             # rf_events_count[batch_i,rf_i] = sum(lengths[batch_i][rf_i:rf_i:step_size])
             x,y = rf_ % shape_y, rf_ // shape_y
-            rf_events_count[batch_i][rf_] += lengths[batch_i,x,y]
+            rf_events_count[batch_i][rf_] += int(lengths[batch_i,x,y])
 
     # # ChatGPT translation of matrix_helpers_kernel.cu n_rf_events_cuda_kernel
     # for batch_id in range(batch_size):
@@ -180,7 +189,7 @@ def min2d_scalar_cuda(input, scalar):
 
     return output
 # mod from matrixlstm_helpers which calls group_rf_bounded_cuda in matrixlstm_helpers_kernel.cu which does not run
-def group_rf_bounded_gpu(input, ids, lengths,
+def group_rf_bounded_gpu(input, ids, lengths, nevents_x_step,
                                     max_events_per_rf,
                                     output_shape_w,
                                     output_shape_h,
@@ -193,7 +202,7 @@ def group_rf_bounded_gpu(input, ids, lengths,
 
     w,h = output_shape_w, output_shape_h
     # number of events in each receptive field of every sample 
-    rf_counts = n_rf_events_cuda(ids, lengths, h*w)
+    rf_counts = n_rf_events_cuda(ids, lengths, nevents_x_step, h*w)
 
     if bound_max and max_rf_events > 0:
         bounded_rf_counts = min2d_scalar_cuda(rf_counts, max_rf_events)
@@ -236,7 +245,7 @@ def group_rf_bounded_gpu(input, ids, lengths,
 
     for scalar_t in torch.floating_point_types():
         group_rf_bounded_cuda_kernel(scalar_t, numBlocks, threadsPerBlock, 
-                                     input, ids, lengths, 
+                                     input, ids, lengths, nevents_x_step,
                                      rf_offsets, rf_counts, groups, 
                                      gr_last_id, gr_batch_id, 
                                      gr_h, gr_w, w, 
