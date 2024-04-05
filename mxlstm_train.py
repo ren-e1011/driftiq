@@ -53,7 +53,7 @@ parser.add_argument("--frame_hw",type=tuple, default = (CAMERA_RES[0],CAMERA_RES
 parser.add_argument("--use_saved_data", type=bool, default = False)
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
-parser.add_argument("--testing", type=bool, default=True)
+parser.add_argument("--testing", type=bool, default=False)
 
 parser.add_argument("--run_name", type=str, default = 'mxlstmvitv0')
 

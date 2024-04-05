@@ -19,6 +19,7 @@ from torch.nn.functional import one_hot, log_softmax
 from torch.optim.lr_scheduler import LinearLR, ExponentialLR, ConstantLR, SequentialLR
 
 from torchmetrics import Accuracy
+from torch.nn import CrossEntropyLoss
 
 # For more details, read https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision
 torch.set_float32_matmul_precision('high')
@@ -61,8 +62,10 @@ class MxLSTMClassifier(LightningModule):
         # self.num_classes = num_classes  
 
         self.accuracy = Accuracy(task="multiclass", num_classes=config.output.n_classes)
+        self.loss = CrossEntropyLoss()
 
         self.train_config = config.training
+        self.num_classes = num_classes
 
     # def configure_optimizers(self):
     #     opt = torch.optim.AdamW(self.model.parameters(), lr=0.0001)
@@ -111,12 +114,15 @@ class MxLSTMClassifier(LightningModule):
 
     def _get_preds_loss_accuracy(self, batch):
         X, nevents, y = batch
-        log_proba = self.model(X, nevents)
-        labels = y.squeeze().to(torch.float)
-        # nll loss 
-        loss = self.model.loss(log_proba, labels)
+        y_oh = one_hot(y.to(torch.int64),self.num_classes)
+        y_oh = y_oh.squeeze().to(torch.float)
+        logits = self.model(X, nevents)
+        # crossentropy loss combines logsoftmax + bceloss 
+        loss = self.loss(logits, y_oh)
 
-        preds = torch.argmax(log_proba, dim=-1)
+
+        labels = y.squeeze().to(torch.float)
+        preds = logits.argmax(-1)
         acc = self.accuracy(preds, labels)
 
         # y_oh = one_hot(y.to(torch.int64),self.num_classes)

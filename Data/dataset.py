@@ -149,10 +149,6 @@ class DataSet(Dataset):
             x = construct_x(x, to_frame = to_frame, step_t = 1/self.fps, bins = self.j_timebins, height = self.frame_h, width = self.frame_w)
 
         
-        else:
-            to_frame = False
-
-        
         return x
     
     

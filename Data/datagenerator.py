@@ -122,7 +122,7 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
 
 
     # includes random steps start in nsteps 
-    start = len(walker.walk)
+    start = len(walker.walk) - 1 # mod to -1 for full 40 steps 
     prev_coords = walker.walk[-1]
     for step in range(start,nsteps):
         # in the event of traj_preset and info walk, will overwrite first moves with random steps
@@ -155,7 +155,10 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
             pickle.dump(walk, fp)
 
     return events, n_events, walk 
- 
+
+
+
+
 
 if __name__ == "__main__":
     imix = 42
