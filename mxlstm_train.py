@@ -1,7 +1,7 @@
 # wrapper for RVT > train.py
 
 import os
-from configs.envar import FILEPATH, CAMERA_RES, BATCH_SIZE, TRAIN_SPLIT_SZ
+from configs.envar import FILEPATH, CAMERA_RES
 os.chdir(FILEPATH)
 import yaml
 
@@ -55,7 +55,7 @@ parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.ya
 
 parser.add_argument("--testing", type=bool, default=False)
 
-parser.add_argument("--run_name", type=str, default = 'mxlstmvitv0')
+parser.add_argument("--run_name", type=str, default = 'mxlstmvitv0nolim_fixedbs')
 
 args = parser.parse_args()
 
@@ -110,7 +110,7 @@ def main(config:DictConfig):
     dataset_size = len(dataset)
     indices = list(range(dataset_size))
 
-    split = int(np.floor(TRAIN_SPLIT_SZ * dataset_size))
+    split = int(np.floor(config.data.train_eval_split * dataset_size))
     if shuffle_dataset :
         np.random.seed(random_seed)
         np.random.shuffle(indices)
@@ -121,14 +121,17 @@ def main(config:DictConfig):
     train_sampler = SubsetRandomSampler(train_indices)
     val_sampler = SubsetRandomSampler(val_indices)
     
+  
+    train_batchsize = 16
+
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
     collate_func = Collator()
-    train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, 
-                                            sampler=train_sampler, num_workers=0, collate_fn=collate_func)
-    # no need to reshuffle validation 
+    train_loader = DataLoader(dataset, batch_size=config.batch_size.train, 
+                                            sampler=train_sampler, num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
+
     
-    validation_loader = DataLoader(dataset, batch_size=BATCH_SIZE,
-                                                    sampler=val_sampler,num_workers=0, collate_fn=collate_func)
+    validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
+                                                    sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
     
     # test_collate_func = Collator(test=True) for test_loader without labels
      # ---------------------

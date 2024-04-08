@@ -66,6 +66,8 @@ class MxLSTMClassifier(LightningModule):
 
         self.train_config = config.training
         self.num_classes = num_classes
+        self.batchsize_train = config.batch_size.train
+        self.batchsize_eval = config.batch_size.eval
 
     # def configure_optimizers(self):
     #     opt = torch.optim.AdamW(self.model.parameters(), lr=0.0001)
@@ -149,9 +151,10 @@ class MxLSTMClassifier(LightningModule):
 
     def predict_step(self, batch, batch_idx):
         X, y = batch
-        yhat, loss = self.model(X,y)
+        logits = self.model(X,y)
+        preds = logits.argmax(-1)
 
-        return yhat 
+        return preds 
     
     def validation_step(self, batch, batch_idx):
         '''used for logging metrics'''
@@ -159,8 +162,8 @@ class MxLSTMClassifier(LightningModule):
 
         # Log loss and metric
         # prog_bar = True? 
-        self.log('val_loss', loss, prog_bar=True)
-        self.log('val_accuracy', acc, prog_bar=True)
+        self.log('val_loss', loss, prog_bar=True, batch_size=self.batchsize_eval)
+        self.log('val_accuracy', acc, prog_bar=True, batch_size= self.batchsize_eval)
         return preds
 
     # def training_step(self, batch: Any, batch_idx: int) -> STEP_OUTPUT:
@@ -168,7 +171,7 @@ class MxLSTMClassifier(LightningModule):
         '''needs to return a loss from a single batch'''
         _, loss, acc = self._get_preds_loss_accuracy(batch)
 
-        self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
-        self.log('train_accuracy', acc, on_step=True, on_epoch=True, logger=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True, batch_size= self.batchsize_train)
+        self.log('train_accuracy', acc, on_step=True, on_epoch=True, logger=True, batch_size= self.batchsize_train)
         
         return loss
