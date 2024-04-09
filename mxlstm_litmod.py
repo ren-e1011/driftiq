@@ -65,9 +65,20 @@ class MxLSTMClassifier(LightningModule):
         self.loss = CrossEntropyLoss()
 
         self.train_config = config.training
-        self.num_classes = num_classes
+        self.num_classes = config.data.classes
+
         self.batchsize_train = config.batch_size.train
         self.batchsize_eval = config.batch_size.eval
+        
+        nsteps_train = config.data.nsamples * config.data.train_eval_split 
+        if nsteps_train % config.data.nsamples > 0:
+            nsteps_train /= self.batchsize_train + 1
+        else:
+            nsteps_train /= self.batchsize_train 
+
+        self.nsteps_train = nsteps_train
+
+        
 
     # def configure_optimizers(self):
     #     opt = torch.optim.AdamW(self.model.parameters(), lr=0.0001)
@@ -88,21 +99,25 @@ class MxLSTMClassifier(LightningModule):
         if not scheduler_params.use:
             return optimizer
 
-        total_steps = scheduler_params.total_steps
-        assert total_steps is not None
-        assert total_steps > 0
+        # GC
+        # total_steps = scheduler_params.total_steps
+        # assert total_steps is not None
+        # assert total_steps > 0
+
         # Here we interpret the final lr as max_lr/final_div_factor.
         # Note that Pytorch OneCycleLR interprets it as initial_lr/final_div_factor:
         final_div_factor_pytorch = scheduler_params.final_div_factor / scheduler_params.div_factor
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer=optimizer,
             max_lr=lr,
+            steps_per_epoch= self.nsteps_train,
+            epochs= self.train_config.exp_epochs,
             div_factor=scheduler_params.div_factor,
             final_div_factor=final_div_factor_pytorch,
-            total_steps=total_steps,
-            pct_start=scheduler_params.pct_start,
+            # total_steps=total_steps, instead, calculate steps from expected 25 epch and steps per epch
+            # pct_start=scheduler_params.pct_start, instead take dfault percentage of cycle increasing lr 
             cycle_momentum=False,
-            anneal_strategy='linear')
+            anneal_strategy='cos') # mod from linear
         lr_scheduler_config = {
             "scheduler": lr_scheduler,
             "interval": "step",
