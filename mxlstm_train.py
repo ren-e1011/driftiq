@@ -4,6 +4,7 @@ import os
 from configs.envar import FILEPATH, CAMERA_RES
 os.chdir(FILEPATH)
 import yaml
+import pickle
 
 # in envar 
 import numpy as np
@@ -54,8 +55,8 @@ parser.add_argument("--use_saved_data", type=bool, default = False)
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
 parser.add_argument("--testing", type=bool, default=False)
-
-parser.add_argument("--run_name", type=str, default = 'mxlstmvitv0nolim_fixedbs')
+parser.add_argument("--reload", type=str, default='') # if not reload empty string
+parser.add_argument("--run_name", type=str, default = 'mxlstmvitv1_softrsched_')
 
 args = parser.parse_args()
 
@@ -65,12 +66,13 @@ def main(config:DictConfig):
     # with open(os.path.join(os.getcwd(),args.config_relpath)) as f:
     #     config = yaml.load(f,Loader=yaml.FullLoader)
 
-    
-
     # ---------------------
     # Model
     # ---------------------
-    module = MxLSTMClassifier(config)
+    module = MxLSTMClassifier(config) 
+    
+    # if args.reload: 
+    #     module.load_from_checkpoint(args.reload)
 
     # ---------------------
     # DDP
@@ -104,17 +106,38 @@ def main(config:DictConfig):
                       use_saved_data= args.use_saved_data,
                       frame_hw = (config.input.height,config.input.width))
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
-    shuffle_dataset = True
-    random_seed = 42
-    # 50k len(CIFAR)
-    dataset_size = len(dataset)
-    indices = list(range(dataset_size))
+    
+    try:
+        with open('./Data/train_indices.pkl','rb') as fp:
+            train_indices = pickle.load(fp)
 
-    split = int(np.floor(config.data.train_eval_split * dataset_size))
-    if shuffle_dataset :
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
-    train_indices, val_indices = indices[:split], indices[split:]
+        with open('./Data/eval_indices.pkl','rb') as fp:
+            val_indices = pickle.load(fp)
+
+    except OSError:
+        if os.path.isfile('./Data/train_indices.pkl'):
+            os.remove('./Data/train_indices.pkl')
+
+        if os.path.isfile('./Data/eval_indices.pkl'):
+            os.remove('./Data/eval_indices.pkl')
+    
+        shuffle_dataset = True
+        random_seed = 42
+        # 50k len(CIFAR)
+        dataset_size = len(dataset)
+        indices = list(range(dataset_size))
+
+        split = int(np.floor(config.data.train_eval_split * dataset_size))
+        if shuffle_dataset :
+            np.random.seed(random_seed)
+            np.random.shuffle(indices)
+        train_indices, val_indices = indices[:split], indices[split:]
+
+        with open('./Data/train_indices.pkl','wb') as outf:
+            pickle.dump(train_indices, outf)
+
+        with open('./Data/eval_indices.pkl','wb') as outf:
+            pickle.dump(val_indices, outf)
 
     # recreate DataLoader with a new sampler in each epoch
     # https://discuss.pytorch.org/t/new-subset-every-epoch/85018
@@ -122,8 +145,6 @@ def main(config:DictConfig):
     val_sampler = SubsetRandomSampler(val_indices)
     
   
-    train_batchsize = 16
-
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
     collate_func = Collator()
     train_loader = DataLoader(dataset, batch_size=config.batch_size.train, 
@@ -132,7 +153,7 @@ def main(config:DictConfig):
     
     validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
                                                     sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
-    
+
     # test_collate_func = Collator(test=True) for test_loader without labels
      # ---------------------
     # Callbacks and Misc
@@ -190,8 +211,10 @@ def main(config:DictConfig):
         reload_dataloaders_every_n_epochs=1
         )
 
-
-    trainer.fit(module, train_loader, validation_loader)
+    if args.reload: 
+        trainer.fit(module, train_loader, validation_loader, ckpt_path=args.reload)
+    else:
+        trainer.fit(module, train_loader, validation_loader)
 
 if __name__ == "__main__":
     conf = OmegaConf.load(os.path.join(os.getcwd(),args.config_relpath))

@@ -70,13 +70,10 @@ class MxLSTMClassifier(LightningModule):
         self.batchsize_train = config.batch_size.train
         self.batchsize_eval = config.batch_size.eval
         
-        nsteps_train = config.data.nsamples * config.data.train_eval_split 
-        if nsteps_train % config.data.nsamples > 0:
-            nsteps_train /= self.batchsize_train + 1
-        else:
-            nsteps_train /= self.batchsize_train 
-
-        self.nsteps_train = nsteps_train
+        nsteps_train = config.data.nsamples * config.data.train_eval_split / self.batchsize_train
+        if config.data.nsamples * config.data.train_eval_split % self.batchsize_train > 0:
+            nsteps_train += 1
+        self.nsteps_train = int(nsteps_train)
 
         
 
