@@ -2,22 +2,28 @@ from configs.envar import CAMERA_RES, IM_SIZE, RAND_TRAJPATH, RAND_EVENTSDIR, IN
 import os
 import numpy as np
 from Data.frames2events_emulator import StatefulEmulator
-from walk.im2infowalk import InfoWalk
+from walk.im2epswalk import EPSWalk
+from walk.im2ucbwalk import UCBWalk
+from walk.im2tswalk import TSWalk
 from walk.im2randomwalk import RandomWalk
+from walk.im2infowalk import InfoWalk
 import pickle 
 from typing import Union 
-from random import choice
+from random import choice, shuffle 
 import warnings
 from utils.preprocess import cutEdges
+from copy import deepcopy
 
 
-def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: list = [],
+def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
                     pos_thres = 0.4, neg_thres = 0.4, refrac_pd = 0.0, fps = 50, 
-                    # traj_preset for inputting trajectory, start_pos for restarting walk eg calling for more timesteps
-                    # vec for im2line ie nsteps in the "N" direction 
-                     traj_preset = [], start_pos = [], vec:str = None, 
-                     frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
-                     save = False):
+                     # traj_preset for inputting trajectory, start_pos for restarting walk eg calling for more timesteps
+                     # vec for im2line ie nsteps in the "N" direction 
+                    traj_preset = [], start_pos = [], vec:str = None, 
+                    frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
+                    eps = 0.03, ts_cdp = 1, ucb_w = 10, ts_w = 10,
+                    maximize = True, warmup = False, warmup_rounds = 2,
+                    save = False):
     
     
     assert not vec or not traj_preset
@@ -49,6 +55,28 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
         traj_path = INFO_TRAJPATH
         events_path = INFO_EVENTSDIR
         walker = InfoWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
+
+    elif walk == 'eps':
+        # TODO new paths if save
+        traj_path = INFO_TRAJPATH
+        events_path = INFO_EVENTSDIR
+        walker = EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps )
+        warmup = True
+        warmup_set = deepcopy(walker.stepset) * warmup_rounds
+
+    elif walk == 'ucb':
+        traj_path = INFO_TRAJPATH
+        events_path = INFO_EVENTSDIR
+        walker = UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w)
+        warmup = True
+        warmup_set = deepcopy(walker.stepset) * warmup_rounds
+
+    elif walk == 'ts':
+        traj_path = INFO_TRAJPATH
+        events_path = INFO_EVENTSDIR
+        walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_cdp, w= ts_w)
+        warmup = True
+        warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
     # placeholder for multiple stabs at infotaxis 
     else:
@@ -105,7 +133,10 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
         imtraj = walker.walk[-len(walker.stepset) - 1:]
         # list of spike counts 
         # imtraj = imtraj instead of walker.walk
-        _, spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
+        if preprocess:
+            _, spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
+        else:
+            spikes = raw_spikes 
         # initial hit. nhits last step morally equivalent to taking another step 
         # vec = choice(walker.stepset)
 
@@ -125,8 +156,22 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
     start = len(walker.walk) - 1 # mod to -1 for full 40 steps 
     prev_coords = walker.walk[-1]
     for step in range(start,nsteps):
+        if warmup and len(warmup_set) > 0:
+            shuffle(warmup_set)
+            vec = warmup_set.pop()
+            
+
+        elif traj_preset:
+            vec = traj_preset[step - start]
+
+        else:
+            vec = None
+
+        next_coords = walker.coord_move(vec=vec)
+         # in the event of traj_preset and info walk, will overwrite first moves with random steps
+        # next_coords = walker.coord_move(vec=traj_preset[step - start]) if traj_preset else walker.coord_move()
+
         # in the event of traj_preset and info walk, will overwrite first moves with random steps
-        next_coords = walker.coord_move(vec=traj_preset[step - start]) if traj_preset else walker.coord_move()
 
         if paused and step in paused:
             raw_events = v2ee.step(coords = next_coords)
@@ -134,8 +179,10 @@ def im2events(img: Union[int,np.array], walk = 'random', nsteps = 40, paused: li
             raw_events = v2ee.step(coords = next_coords)
 
         # need to do it step by step for 
-        step_events, n_step_events = cutEdges(x = [raw_events], imtraj=[prev_coords,next_coords])
-        # step_events returns [] => len == 0 if step_events is None 
+        if preprocess:
+            step_events, n_step_events = cutEdges(x = [raw_events], imtraj=[prev_coords,next_coords])
+        else:
+            step_events, n_step_events = raw_events, len(raw_events)        # step_events returns [] => len == 0 if step_events is None 
         walker.update(next_coords, len(step_events))
         events.append(step_events)
         n_events.append(n_step_events)
