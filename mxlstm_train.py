@@ -1,7 +1,7 @@
 # wrapper for RVT > train.py
 
 import os
-from configs.envar import FILEPATH, CAMERA_RES
+from configs.envar import FILEPATH, CAMERA_RES, COMET_API_KEY
 os.chdir(FILEPATH)
 import yaml
 import pickle
@@ -25,6 +25,7 @@ import configargparse as argparse
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.loggers import CometLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelSummary
 from pytorch_lightning.strategies import DDPStrategy
@@ -41,22 +42,20 @@ from mxlstm_litmod import MxLSTMClassifier
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--walk", type=str, default='random')
+parser.add_argument("--preprocess", type = bool, default=True)
 
-parser.add_argument("--model", type=str, default='matrixlstm', choices=['matrixlstm','rvt'])
-
-parser.add_argument("--timesteps", type=int, default=40)
-parser.add_argument("--refrac_pd", type=int, default=0.0)
-parser.add_argument("--threshold", type=int, default=0.4)
-
-parser.add_argument("--frame_rate_hz",type=int,default=50)
-parser.add_argument("--frame_hw",type=tuple, default = (CAMERA_RES[0],CAMERA_RES[1]))
+parser.add_argument("--model", type=str, default='mxlstmvit', choices=['matrixlstm','rvt'])
 
 parser.add_argument("--use_saved_data", type=bool, default = False)
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
-parser.add_argument("--testing", type=bool, default=False)
-parser.add_argument("--reload", type=str, default='') # if not reload empty string
-parser.add_argument("--run_name", type=str, default = 'mxlstmvitv1_softrsched_')
+parser.add_argument("--testing", type=bool, default=True)
+parser.add_argument("--logger", type=str, default='wandb')
+parser.add_argument("--gpu", type=int, default=0)
+
+# RANDOM
+parser.add_argument("--reload_path", type=str, default='') # if not reload empty string
+parser.add_argument("--kth_reload", type=int, default=0)
 
 args = parser.parse_args()
 
@@ -69,7 +68,8 @@ def main(config:DictConfig):
     # ---------------------
     # Model
     # ---------------------
-    module = MxLSTMClassifier(config) 
+    if args.model == 'mxlstmvit': # TODO abstract to train 
+     module = MxLSTMClassifier(config) 
     
     # if args.reload: 
     #     module.load_from_checkpoint(args.reload)
@@ -77,7 +77,8 @@ def main(config:DictConfig):
     # ---------------------
     # DDP
     # ---------------------
-    gpus = config.hardware.gpus
+    # gpus = config.hardware.gpus
+    gpus = args.gpu
     gpus = gpus if isinstance(gpus, list) else [gpus]
     distributed_backend = config.hardware.dist_backend
     assert distributed_backend in ('nccl', 'gloo'), f'{distributed_backend=}'
@@ -88,14 +89,19 @@ def main(config:DictConfig):
     # ---------------------
     # Logging and Checkpoints
     # ---------------------
-    # logger = get_wandb_logger(config) MOD 
-    if not args.testing: 
-        logger = WandbLogger(project='diq',name= args.run_name,job_type='train', log_model='all')
-        # if not testing code
-        logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
+
+    run_name = f"{args.model}_{args.walk}_reload{args.kth_reload}"
+    if not args.testing:
+        if args.logger == 'wandb': 
+            logger = WandbLogger(project='diq',name= run_name,job_type='train', log_model='all')
+            logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
+        elif args.logger == 'comet':
+            logger = CometLogger(api_key=COMET_API_KEY,project_name='driftiq',experiment_name=run_name)
+         # if not testing code
+        else:
+            logger = None
     else:
         logger = None
-
      # ---------------------
     # load dataset - move to data module
     # ---------------------
@@ -104,7 +110,7 @@ def main(config:DictConfig):
                       steps = config.time.steps, bins=config.time.bins, 
                       refrac_pd=config.emulator.refrac_pd, threshold= config.emulator.threshold,
                       use_saved_data= args.use_saved_data,
-                      frame_hw = (config.input.height,config.input.width))
+                      frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess)
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
     
     try:
@@ -168,7 +174,7 @@ def main(config:DictConfig):
     checkpoint_callback = ModelCheckpoint(monitor='val_accuracy',mode='max',
                                           every_n_epochs=config.logging.ckpt_every_n_epochs,
                                           filename=ckpt_filename,
-                                          save_top_k=1,save_last=True,verbose=True)
+                                          save_top_k=1,save_last=True,verbose=True) # 2 if restarting with arbtrary accuracy 
     checkpoint_callback.CHECKPOINT_NAME_LAST = 'last_epoch={epoch:03d}-step={step}'
     callbacks.append(checkpoint_callback)
     early_stop_callback = EarlyStopping(monitor="val_loss")
@@ -212,7 +218,7 @@ def main(config:DictConfig):
         )
 
     if args.reload: 
-        trainer.fit(module, train_loader, validation_loader, ckpt_path=args.reload)
+        trainer.fit(module, train_loader, validation_loader, ckpt_path=args.reload_path)
     else:
         trainer.fit(module, train_loader, validation_loader)
 
