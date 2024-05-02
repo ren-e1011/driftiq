@@ -168,6 +168,19 @@ class MxLSTMClassifier(LightningModule):
 
         return preds 
     
+    def test_step(self, batch, batch_idx):
+        preds, loss, acc = self._get_preds_loss_accuracy(batch)
+
+        # X, y = batch
+        # logits = self.model(X,y)
+        # preds = logits.argmax(-1)
+
+        # log the outputs!
+        self.log('test_loss', loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=self.batchsize_eval)
+        self.log('test_accuracy', acc, on_step=True, on_epoch=True, prog_bar=True, batch_size= self.batchsize_eval)
+ 
+        return preds
+    
     def validation_step(self, batch, batch_idx):
         '''used for logging metrics'''
         preds, loss, acc = self._get_preds_loss_accuracy(batch)
@@ -177,6 +190,15 @@ class MxLSTMClassifier(LightningModule):
         self.log('val_loss', loss, prog_bar=True, batch_size=self.batchsize_eval)
         self.log('val_accuracy', acc, prog_bar=True, batch_size= self.batchsize_eval)
         return preds
+    
+        # metrics = {"val_acc": acc, "val_loss": loss, "preds":preds}
+        # self.log_dict(metrics,prog_bar=True, batch_size= self.batchsize_eval)
+        # return metrics
+    
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        y_hat, _, _ = self._get_preds_loss_accuracy(batch)
+
+        return y_hat
 
     # def training_step(self, batch: Any, batch_idx: int) -> STEP_OUTPUT:
     def training_step(self, batch, batch_idx):
