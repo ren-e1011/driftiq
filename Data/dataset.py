@@ -1,4 +1,4 @@
-from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, CIFAR, FPS 
+from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, CIFAR, CIFAR_test
 
 import os
 import pickle
@@ -20,6 +20,7 @@ class Collator(object):
     test : Set True when using with test data loader. Defaults to False
     percentile : Trim sequences by this percentile
     '''
+    # test parameter is for validation** Not test which has ys 
     def __init__(self,test=False,percentile=100):
         self.test = test
         # self.percentile = percentile # not important for our use case where we are going to lob off all padding using returned lengths
@@ -37,7 +38,7 @@ class Collator(object):
             # x = [item[0] for item in batch]
             # lengths = [item[1] for item in batch]
 
-        max_len = max(sample_lengths)
+        # max_len = max(sample_lengths)
         # lens = [len(x) for x in data]
         # max_len = np.percentile(lens,self.percentile)
         x = pad_sequence(x,batch_first=True) # automatically pads to max_len
@@ -51,7 +52,7 @@ class Collator(object):
 
 class DataSet(Dataset):
 
-    def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw):
+    def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw, fps, preproc_data = True,ts_beta = 10, test=False):
         self.architecture = architecture
         self.walk = walk
         self.events_path = RAND_EVENTSDIR if self.walk == 'random' else INFO_EVENTSDIR 
@@ -64,8 +65,10 @@ class DataSet(Dataset):
 
         self.rp = refrac_pd
         self.thres = threshold
-        self.fps = FPS
+        self.fps = fps
+        self.ts_beta = ts_beta
 
+        self.data = CIFAR if not test else CIFAR_test
         self.use_saved = use_saved_data
         # CAMERA_RES
         self.frame_h = frame_hw[0]
@@ -116,7 +119,7 @@ class DataSet(Dataset):
                                    refrac_pd=self.rp,fps=self.fps, 
                                    # to restart walk 
                                    start_pos = start_pos, 
-                                    frame_h = self.frame_h, frame_w = self.frame_w)
+                                   frame_h = self.frame_h, frame_w = self.frame_w, ts_w=self.ts_beta, preprocess= self.preproc_data)
         
         
         # TODO verify nevents => length in /home/renaj/DIQ/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader
@@ -124,7 +127,7 @@ class DataSet(Dataset):
 
     def __len__(self):
         # returns 3125 - 50k/batch_size=16
-        return len(CIFAR) 
+        return len(self.data) 
 
     
     
@@ -162,7 +165,7 @@ class DataSet(Dataset):
         x = self.preprocess(events, traj,index) # different preprocessing for mxlstm
         
         # y is a torch.uint8
-        _,y = CIFAR[index]
+        _,y = self.data[index]
         # to retain [19] not a tensor with shape 19 
         y = torch.tensor([y], dtype=torch.int)
 
