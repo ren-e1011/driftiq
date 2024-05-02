@@ -64,6 +64,7 @@ CAMERA_RES = (96,96,3)
 # SENSOR = np.zeros(CAMERA_RES,dtype=int)
 
 CIFAR = datasets.CIFAR100(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
+CIFAR_test = datasets.CIFAR100(os.path.join(FILEPATH,'SavedData/'),train=False,download=True, transform=None)
 # 32
 IM_SIZE = CIFAR[0][0].size[0]
 N_CLASSES = 100 
@@ -116,3 +117,4 @@ align_t_ms = 100
 align_t_us = align_t_ms * 1000
 delta_t_us = ts_step_ev_repr_ms * 1000
 
+COMET_API_KEY = ''

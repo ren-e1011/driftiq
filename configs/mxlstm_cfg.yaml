@@ -15,6 +15,12 @@ time:
 emulator:
   refrac_pd: 0.0
   threshold: 0.4
+  frame_hw: [96,96]
+
+data:
+  train_eval_split: .85
+  nsamples: 50000
+  classes: 100
 
 
 matrix:
@@ -48,12 +54,12 @@ reproduce:
   deterministic_flag: False # Must be true for fully deterministic behaviour (slows down training)
   benchmark: False # Should be set to false for fully deterministic behaviour. Could potentially speed up training.
 training:
-  precision: 16-mixed
+  precision: 32 # 16-mixed
   max_epochs: 10000
-  exp_epochs: 25 # expected number of epochs - for testing - to run to completion 
+  exp_epochs: 50 # expected number of epochs - for testing - to run to completion - MOD from 25
   max_steps: 400000
-  learning_rate: 0.0002
-  weight_decay: 0
+  learning_rate: 0.0001 # mod from .0002
+  weight_decay: 0.01 # mod from 0 
   gradient_clip_val: 1.0
   limit_train_batches: 1.0
   lr_scheduler:
@@ -67,12 +73,12 @@ validation:
   val_check_interval: null # Optional[int]
   check_val_every_n_epoch: 1 # Optional[int]
 batch_size:
-  train: 8
-  eval: 8
+  train: 16
+  eval: 16
 hardware:
   num_workers:
-    train: 6
-    eval: 2
+    train: 0 # from 6 
+    eval: 0 # from 2
   gpus: 0 # Either a single integer (e.g. 3) or a list of integers (e.g. [3,5,6])
   dist_backend: "nccl"
 logging:
