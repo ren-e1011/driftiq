@@ -3,7 +3,7 @@
 # Passes frame to emulator with step dictated by walker
 # Is agnostic to the walk policy 
 
-from configs.envar import CAMERA_RES, IM_SIZE, CIFAR
+from configs.envar import CAMERA_RES, IM_SIZE, CIFAR, CIFAR_test
 import numpy as np
 from v2e.v2ecore.emulator import EventEmulator
 import cv2
@@ -26,7 +26,8 @@ class StatefulEmulator(EventEmulator):
         
         im_size = IM_SIZE,
         frame_h = CAMERA_RES[0],
-        frame_w = CAMERA_RES[1]    
+        frame_w = CAMERA_RES[1],
+        test_data = False    
     ):
         
         super().__init__(output_folder=output_folder,
@@ -35,7 +36,9 @@ class StatefulEmulator(EventEmulator):
         shot_noise_rate_hz=shot_noise_rate_hz, 
         refractory_period_s=refractory_period_s, 
         pos_thres=pos_thres, 
-        neg_thres=neg_thres)
+        neg_thres=neg_thres, 
+        output_height=frame_h,
+        output_width=frame_w)
 
         # self.set_dvs_params("clean")
 
@@ -50,7 +53,8 @@ class StatefulEmulator(EventEmulator):
         # frame times 
         # my understanding of v2e.v2e lines 611 (input_slowmotion_factor = 1.0), 788, 794-797 
         # starting times [0., 0.02,...,5.98] in increments of 0.02 for a total of six seconds
-        interpTimes = np.array(range(num_frames))
+        num_frames += 1 # mod +1
+        interpTimes = np.array(range(num_frames)) # mod + 1
         interpTimes = self.delta_t * interpTimes
 
         self.im_size = (im_size, im_size ) if isinstance(im_size, int) else im_size
@@ -63,7 +67,7 @@ class StatefulEmulator(EventEmulator):
         # to save other event files 
         self.prepare_storage(num_frames,interpTimes)
 
-        
+        self.data = CIFAR if not test_data else CIFAR_test
         
 # TODO small batch of frames - using n_frames
     def em_frame(self, luma_frame: np.array):
@@ -107,7 +111,8 @@ class StatefulEmulator(EventEmulator):
         center_coord = self.center if not start_pos else start_pos
 
         if type(img) == int:
-            self.img = np.array(CIFAR[img][0])
+            # self.img = np.array(CIFAR[img][0]) 
+            self.img = np.array(self.data[img][0])
         else:
             self.img = img 
 

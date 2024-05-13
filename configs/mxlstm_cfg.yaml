@@ -41,9 +41,9 @@ lstm:
 
 features:
   time: 'delay_norm'
-  coords: False 
+  coords: True 
   normalize_relative: True
-  add_coords: False
+  add_coords: True
 
 
 output:

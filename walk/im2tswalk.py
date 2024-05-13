@@ -9,9 +9,9 @@ from math import log, exp
 # snippet from https://www.geeksforgeeks.org/epsilon-greedy-algorithm-in-reinforcement-learning/
 
 class Action: 
-    def __init__(self, action: str, sigma_): 
+    def __init__(self, action: str, sigma_: int): 
         self.i = action
-        self.mu = 0
+        self.mu = 0 
         self.n = 0
         self.sigma_ = sigma_ 
         self.sigma = sigma_ # variance on the order of 100 
@@ -30,7 +30,7 @@ class Action:
             self.sigma = (1 / ((1/self.sigma)+ (1/self.sigma_)))
             
 class TSWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], cdp = 4, w = 10): # todo rm w
+    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], cdp = 4): # todo rm w
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         

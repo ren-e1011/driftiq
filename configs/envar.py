@@ -21,6 +21,7 @@ from torchvision import datasets
 FILEPATH = '/home/renaj/DIQ'
 RAND_ = "SavedData/RandomImWalk"
 INFO_ = "SavedData/InfoImWalk"
+TS_ = "SavedData/TSImWalk"
 
 # TODO rm
 RVT_FILEPATH = '/home/renaj/DIQ/RVTClass'
@@ -29,12 +30,15 @@ OUTDIR = './Data/RandomImWalk/300Frames50Hz/'
 # home filepath (DIQ) + 
 RAND_TRAJPATH = os.path.join(FILEPATH, RAND_ ,"Trajectories")
 INFO_TRAJPATH = os.path.join (FILEPATH, INFO_, "Trajectories")
+TS_TRAJPATH = os.path.join(FILEPATH, TS_,"Trajectories")
 # TODO mod
 RAND_EVENTSDIR = os.path.join(FILEPATH, RAND_, "Events")
 INFO_EVENTSDIR = os.path.join(FILEPATH, INFO_, "Events")
+TS_EVENTSDIR = os.path.join(FILEPATH, TS_, "Events")
 
 RAND_HITSDIR = os.path.join(FILEPATH, RAND_, "HitLists")
 INFO_HITSDIR = os.path.join(FILEPATH, INFO_, "HitLists")
+TS_HITSDIR = os.path.join(FILEPATH, TS_, "HitLists")
 
 # should be unnecessary with pytorch_lightning
 # USE_CUDA = True

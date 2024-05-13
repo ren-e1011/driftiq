@@ -6,7 +6,6 @@ os.chdir(FILEPATH)
 import yaml
 import pickle
 
-# in envar 
 import numpy as np
 
 # RVT train.py and https://pytorch.org/docs/master/multiprocessing.html?highlight=sharing%20strategy#sharing-strategies
@@ -37,21 +36,22 @@ from torch.utils.data import DataLoader
 from Data.dataset import DataSet, Collator
 
 
-from mxlstm_litmod import MxLSTMClassifier
+from mxlstm.litmod import MxLSTMClassifier
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--walk", type=str, default='random')
+parser.add_argument("--walk", type=str, default='ts')
 parser.add_argument("--preprocess", type = bool, default=True)
 
-parser.add_argument("--model", type=str, default='mxlstmvit', choices=['matrixlstm','rvt'])
+# parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) for outer train module 
 
 parser.add_argument("--use_saved_data", type=bool, default = False)
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
-parser.add_argument("--testing", type=bool, default=True)
+parser.add_argument("--trial_run", type=bool, default=False)
+
 parser.add_argument("--logger", type=str, default='wandb')
-parser.add_argument("--gpu", type=int, default=0)
+parser.add_argument("--gpu", type=int, default=1)
 
 # RANDOM
 parser.add_argument("--reload_path", type=str, default='') # if not reload empty string
@@ -62,17 +62,11 @@ args = parser.parse_args()
 from omegaconf import DictConfig, OmegaConf
 
 def main(config:DictConfig):
-    # with open(os.path.join(os.getcwd(),args.config_relpath)) as f:
-    #     config = yaml.load(f,Loader=yaml.FullLoader)
 
     # ---------------------
     # Model
     # ---------------------
-    if args.model == 'mxlstmvit': # TODO abstract to train 
-     module = MxLSTMClassifier(config) 
-    
-    # if args.reload: 
-    #     module.load_from_checkpoint(args.reload)
+    module = MxLSTMClassifier(config) 
 
     # ---------------------
     # DDP
@@ -90,8 +84,8 @@ def main(config:DictConfig):
     # Logging and Checkpoints
     # ---------------------
 
-    run_name = f"{args.model}_{args.walk}_reload{args.kth_reload}"
-    if not args.testing:
+    run_name = f"train_mxvit_{args.walk}walk_reload{args.kth_reload}"
+    if not args.trial_run:
         if args.logger == 'wandb': 
             logger = WandbLogger(project='diq',name= run_name,job_type='train', log_model='all')
             logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
@@ -102,7 +96,8 @@ def main(config:DictConfig):
             logger = None
     else:
         logger = None
-     # ---------------------
+    
+    # ---------------------
     # load dataset - move to data module
     # ---------------------
     dataset = DataSet(walk = args.walk, 
@@ -110,7 +105,7 @@ def main(config:DictConfig):
                       steps = config.time.steps, bins=config.time.bins, 
                       refrac_pd=config.emulator.refrac_pd, threshold= config.emulator.threshold,
                       use_saved_data= args.use_saved_data,
-                      frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess)
+                      frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess, test=False)
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
     
     try:
@@ -138,6 +133,7 @@ def main(config:DictConfig):
             np.random.seed(random_seed)
             np.random.shuffle(indices)
         train_indices, val_indices = indices[:split], indices[split:]
+        
 
         with open('./Data/train_indices.pkl','wb') as outf:
             pickle.dump(train_indices, outf)
@@ -148,7 +144,7 @@ def main(config:DictConfig):
     # recreate DataLoader with a new sampler in each epoch
     # https://discuss.pytorch.org/t/new-subset-every-epoch/85018
     train_sampler = SubsetRandomSampler(train_indices)
-    val_sampler = SubsetRandomSampler(val_indices)
+    val_sampler = SubsetRandomSampler(val_indices)    
     
   
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
@@ -160,8 +156,8 @@ def main(config:DictConfig):
     validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
                                                     sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
 
-    # test_collate_func = Collator(test=True) for test_loader without labels
-     # ---------------------
+    
+    # ---------------------
     # Callbacks and Misc
     # ---------------------
     callbacks = list()
@@ -169,7 +165,7 @@ def main(config:DictConfig):
         callbacks.append(LearningRateMonitor(logging_interval='step'))
     callbacks.append(ModelSummary(max_depth=2))
     # see RVT > callbacks > custom > get_ckpt_callback 
-    ckpt_filename = f"{args.run_name}_"+'epoch={epoch:03d}-step={step}- ={ :.2f}'
+    ckpt_filename = f"{run_name}_"+"epoch={epoch:03d}-step={step}"
 
     checkpoint_callback = ModelCheckpoint(monitor='val_accuracy',mode='max',
                                           every_n_epochs=config.logging.ckpt_every_n_epochs,
@@ -180,7 +176,7 @@ def main(config:DictConfig):
     early_stop_callback = EarlyStopping(monitor="val_loss")
     callbacks.append(early_stop_callback)
 
-     # ---------------------
+    # ---------------------
     # Training
     # ---------------------
 
@@ -199,14 +195,14 @@ def main(config:DictConfig):
         devices=gpus,
         gradient_clip_val=config.training.gradient_clip_val,
         gradient_clip_algorithm='value',
-        limit_train_batches=config.training.limit_train_batches if not args.testing else 4,
-        limit_val_batches=config.validation.limit_val_batches if not args.testing else 2,
-        logger=logger, #if not args.testing else None
+        limit_train_batches=config.training.limit_train_batches if not args.trial_run else 4,
+        limit_val_batches=config.validation.limit_val_batches if not args.trial_run else 2,
+        logger=logger, #if not args.trial_run else None
         log_every_n_steps=config.logging.train.log_every_n_steps,
         plugins=None,
         # UserWarning: 16 is supported for historical reasons but its usage is discouraged. Please set your precision to 16-mixed instead!
         precision=config.training.precision,
-        max_epochs=config.training.max_epochs if not args.testing else 2,
+        max_epochs=config.training.max_epochs if not args.trial_run else 2,
         max_steps=config.training.max_steps,
         # "auto" is default. None is not an acceptable strategy - TODO DDP
         strategy=strategy if strategy is not None else "auto",
@@ -217,8 +213,9 @@ def main(config:DictConfig):
         reload_dataloaders_every_n_epochs=1
         )
 
-    if args.reload: 
+    if args.reload_path: 
         trainer.fit(module, train_loader, validation_loader, ckpt_path=args.reload_path)
+
     else:
         trainer.fit(module, train_loader, validation_loader)
 

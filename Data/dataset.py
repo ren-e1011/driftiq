@@ -1,4 +1,4 @@
-from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, CIFAR, CIFAR_test
+from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, TS_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, TS_TRAJPATH, CIFAR, CIFAR_test
 
 import os
 import pickle
@@ -55,8 +55,8 @@ class DataSet(Dataset):
     def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw, fps, preproc_data = True,ts_beta = 10, test=False):
         self.architecture = architecture
         self.walk = walk
-        self.events_path = RAND_EVENTSDIR if self.walk == 'random' else INFO_EVENTSDIR 
-        self.traj_path = RAND_TRAJPATH if self.walk == 'random' else INFO_TRAJPATH
+        self.events_path = RAND_EVENTSDIR if self.walk == 'random' else TS_EVENTSDIR if self.walk == 'ts' else INFO_EVENTSDIR 
+        self.traj_path = RAND_TRAJPATH if self.walk == 'random' else TS_TRAJPATH if self.walk == 'ts' else INFO_TRAJPATH
 
         # number of timesteps
         self.n_steps = steps
@@ -69,15 +69,19 @@ class DataSet(Dataset):
         self.ts_beta = ts_beta
 
         self.data = CIFAR if not test else CIFAR_test
+        self.test_data = test
         self.use_saved = use_saved_data
         # CAMERA_RES
         self.frame_h = frame_hw[0]
         self.frame_w = frame_hw[1]
 
+        self.preproc_data = preproc_data
+
         
 
     # if frames have been saved into h5 file timesteps
-    def get_events(self,i):
+    def get_events(self,i,start_pos: list = [],k_steps: int = None):
+        k_steps = self.n_steps if not k_steps else k_steps 
         # 300 frames at 50fps is 6 seconds - with 0.02s time steps
         # biological drift speed ~40 arcmin/second for ~300ms 
 
@@ -85,6 +89,7 @@ class DataSet(Dataset):
         events = None
         imtraj_pkl = os.path.join(self.traj_path,f"Im_{i}.pkl")
             
+        # TODO mod for accessing the next k steps 
         try: 
             events = np.array(h5py.File(self.events_path+f"/Im_{i}.h5")['events'], dtype='int32')
             with open(imtraj_pkl, 'rb') as fp:
@@ -92,14 +97,21 @@ class DataSet(Dataset):
                 imtraj = pickle.load(fp)
             # whether file does not exist or is corrupted
             # OSError or FileNotFoundError 
-        except OSError:
+        except OSError: #OSError
             if os.path.isfile(self.events_path+f"/Im_{i}.h5"):
                 os.remove(self.events_path+f"/Im_{i}.h5")
 
             if os.path.isfile(self.traj_path+f"/Im_{i}.pkl"):
                 os.remove(self.traj_path+f"/Im_{i}.pkl")
 
-            im2events(i, walk = self.walk, nsteps = self.n_steps, fps = self.fps, save = True )
+            # im2events(i, walk = self.walk, nsteps = self.n_steps, fps = self.fps, save = True )
+            im2events(img=i, walk = self.walk, nsteps=k_steps, 
+                                   pos_thres=self.thres,neg_thres=self.thres, 
+                                   refrac_pd=self.rp,fps=self.fps, 
+                                   # to restart walk 
+                                   start_pos = start_pos, 
+                                   frame_h = self.frame_h, frame_w = self.frame_w, ts_w=self.ts_beta, preprocess= self.preproc_data,
+                                   test_data= self.test_data)
 
             events = np.array(h5py.File(self.events_path+f"/Im_{i}.h5")['events'], dtype='int32')
             with open(imtraj_pkl, 'rb') as fp:
@@ -119,7 +131,8 @@ class DataSet(Dataset):
                                    refrac_pd=self.rp,fps=self.fps, 
                                    # to restart walk 
                                    start_pos = start_pos, 
-                                   frame_h = self.frame_h, frame_w = self.frame_w, ts_w=self.ts_beta, preprocess= self.preproc_data)
+                                   frame_h = self.frame_h, frame_w = self.frame_w, ts_w=self.ts_beta, preprocess= self.preproc_data,
+                                   test_data=self.test_data)
         
         
         # TODO verify nevents => length in /home/renaj/DIQ/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader

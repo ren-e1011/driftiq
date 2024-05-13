@@ -70,6 +70,7 @@ class MxLSTMClassifier(LightningModule):
         self.batchsize_train = config.batch_size.train
         self.batchsize_eval = config.batch_size.eval
         
+        # number of batches - evenly divides into batchsize or remaining in the last batch 
         nsteps_train = config.data.nsamples * config.data.train_eval_split / self.batchsize_train
         if config.data.nsamples * config.data.train_eval_split % self.batchsize_train > 0:
             nsteps_train += 1
@@ -128,6 +129,7 @@ class MxLSTMClassifier(LightningModule):
 
     def _get_preds_loss_accuracy(self, batch):
         X, nevents, y = batch
+        # loss = self.loss(logits, y)
         y_oh = one_hot(y.to(torch.int64),self.num_classes)
         y_oh = y_oh.squeeze().to(torch.float)
         logits = self.model(X, nevents)
@@ -161,12 +163,12 @@ class MxLSTMClassifier(LightningModule):
 
         return preds, loss, acc
 
-    def predict_step(self, batch, batch_idx):
-        X, y = batch
-        logits = self.model(X,y)
-        preds = logits.argmax(-1)
+    # def predict_step(self, batch, batch_idx):
+    #     X, y = batch
+    #     logits = self.model(X,y)
+    #     preds = logits.argmax(-1)
 
-        return preds 
+    #     return preds 
     
     def test_step(self, batch, batch_idx):
         preds, loss, acc = self._get_preds_loss_accuracy(batch)
