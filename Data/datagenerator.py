@@ -22,7 +22,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
                      # vec for im2line ie nsteps in the "N" direction 
                     traj_preset = [], start_pos = [], vec:str = None, 
                     frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
-                    eps = 0.03, ts_cdp = 4, ucb_w = 10,
+                    eps = 0.03, ts_w = 4, ts_mu = 3, ucb_w = 10,
                     maximize = True, warmup = False, warmup_rounds = 2,
                     save = False, test_data = False):
     
@@ -80,7 +80,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
         traj_path = TS_TRAJPATH
         events_path = TS_EVENTSDIR
         hits_path = TS_HITSDIR
-        walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_cdp)
+        walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu)
         warmup = True
         warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
@@ -231,7 +231,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
             pickle.dump(walker.walk, fp)
 
 
-    return events, n_events, walk 
+    return events, n_events, walker.walk 
 
 
 
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     frame_h, frame_w = 96,96
     # for imix in tqdm(range(50000)):
     imix = 42
-    for imix in tqdm(range(5)):
+    for imix in tqdm(range(5,10)):
         events, nevents, imtraj = im2events(img=imix, walk = walk, nsteps=n_steps, 
                                 pos_thres=threshold,neg_thres=threshold, 
                                 refrac_pd=refrac_pd,fps=fps, 

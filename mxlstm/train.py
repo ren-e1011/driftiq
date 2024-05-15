@@ -1,8 +1,10 @@
 # wrapper for RVT > train.py
-
-import os
-from configs.envar import FILEPATH, CAMERA_RES, COMET_API_KEY
-os.chdir(FILEPATH)
+from pathlib import Path 
+import os, sys
+sys.path.append(str(Path.cwd().parent)) # for pythonpath 
+sys.path.append(str(Path.cwd()))
+from configs.envar import COMET_API_KEY
+ # for pythonpath
 import yaml
 import pickle
 

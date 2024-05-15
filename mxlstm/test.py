@@ -1,6 +1,7 @@
-import os
+import sys
 from configs.envar import FILEPATH, CAMERA_RES, COMET_API_KEY
-os.chdir(FILEPATH)
+# os.chdir(FILEPATH)
+sys.path.append(FILEPATH)
 import yaml
 import pickle
 

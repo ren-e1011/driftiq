@@ -105,6 +105,7 @@ class DataSet(Dataset):
                 os.remove(self.traj_path+f"/Im_{i}.pkl")
 
             # im2events(i, walk = self.walk, nsteps = self.n_steps, fps = self.fps, save = True )
+            # ucb_w, eps default in datagenerator
             im2events(img=i, walk = self.walk, nsteps=k_steps, 
                                    pos_thres=self.thres,neg_thres=self.thres, 
                                    refrac_pd=self.rp,fps=self.fps, 
@@ -135,7 +136,7 @@ class DataSet(Dataset):
                                    test_data=self.test_data)
         
         
-        # TODO verify nevents => length in /home/renaj/DIQ/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader
+        # TODO verify nevents => length in /home/renaj/Driftiq/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader
         return events, nevents, imtraj 
 
     def __len__(self):

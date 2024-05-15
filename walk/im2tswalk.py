@@ -9,9 +9,9 @@ from math import log, exp
 # snippet from https://www.geeksforgeeks.org/epsilon-greedy-algorithm-in-reinforcement-learning/
 
 class Action: 
-    def __init__(self, action: str, sigma_: int): 
+    def __init__(self, action: str, sigma_: int = 4, mu_: int = 3): 
         self.i = action
-        self.mu = 0 
+        self.mu = mu_ 
         self.n = 0
         self.sigma_ = sigma_ 
         self.sigma = sigma_ # variance on the order of 100 
@@ -26,11 +26,10 @@ class Action:
         # self.mean = (1 - 1.0 / self.N)*self.mean + 1.0 / self.N * hits 
         # self.mu = ((self.n - 1) / float(self.n)) * self.mu + (1.0 / float(self.n)) * hits
         if hits > 0:
-            self.mu = (((1/self.sigma)* self.mu +  (1/self.sigma_) * (log(hits) + self.sigma_/2))/((1/self.sigma)+ (1/self.sigma_)))
+            self.mu = (((1/self.sigma)* self.mu +  (1/self.sigma_) * (log(hits) + (self.sigma_/2)))/((1/self.sigma)+ (1/self.sigma_)))
             self.sigma = (1 / ((1/self.sigma)+ (1/self.sigma_)))
-            
 class TSWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], cdp = 4): # todo rm w
+    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], cdp = 4, mu=3): # todo rm w
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         
@@ -46,7 +45,7 @@ class TSWalk:
         
         self.stepset = ['N','E','S','W', 'NE', 'NW', 'SE', 'SW']
 
-        self.actions = [Action(a,cdp) for a in self.stepset] 
+        self.actions = [Action(a,cdp,mu) for a in self.stepset] 
         self.maximize = maximize
 
 
