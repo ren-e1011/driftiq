@@ -1,3 +1,8 @@
+from pathlib import Path 
+import os, sys
+sys.path.append(str(Path.cwd().parent)) # for pythonpath 
+sys.path.append(str(Path.cwd()))
+
 
 from random import choice 
 from configs.envar import CAMERA_RES, IM_SIZE
@@ -45,9 +50,9 @@ def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
             # would work for removing just one edge and also if the img is eg in a corner there are 3 
             stepset = list(filter(lambda x: x != vec, stepset))
             # vec is not None so will not instantiate new stepset
-            _coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset)
+            x_a, vec = _coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset)
             # print(f"out of frame, step {step}")import itertools
-
+            
             # coord_move(<- if edge, pick a new )
         # return vec which might be different than 
         return x_a, vec 
@@ -93,3 +98,13 @@ def _traj_to_dir(imtraj: list):
                 dir_list.append('X')
             out_nw = in_nw 
         return dir_list 
+
+if __name__ == "__main__":
+    x_list = [[32,32]]
+    v_list = []
+    for i in range(60):
+        x,v = _coord_move(vec="N",x_a=x_list[-1],stepset=['N','S','W','E','NW','NE','SW','SE'])
+        x_list.append(x)
+        v_list.append(v)
+    print(x_list)
+    print(v_list)
