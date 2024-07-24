@@ -3,7 +3,6 @@ from pathlib import Path
 import os, sys
 sys.path.append(str(Path.cwd().parent)) # for pythonpath 
 sys.path.append(str(Path.cwd()))
-from configs.envar import COMET_API_KEY
  # for pythonpath
 import yaml
 import pickle
@@ -25,11 +24,7 @@ import configargparse as argparse
 
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
-from lightning.pytorch.loggers import CometLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelSummary
-from pytorch_lightning.strategies import DDPStrategy
+
 
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import DataLoader
@@ -41,73 +36,32 @@ from Data.dataset import DataSet, Collator
 from mxlstm.litmod import MxLSTMClassifier
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--walk", type=str, default='ts')
-parser.add_argument("--preprocess", type = bool, default=True)
-
-# parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) for outer train module 
-
-parser.add_argument("--use_saved_data", type=bool, default = False)
-parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
-
-parser.add_argument("--trial_run", type=bool, default=False)
-
-parser.add_argument("--logger", type=str, default='wandb')
-parser.add_argument("--gpu", type=int, default=1)
-
-# RANDOM
-parser.add_argument("--reload_path", type=str, default='') # if not reload empty string
-parser.add_argument("--kth_reload", type=int, default=0)
-
-args = parser.parse_args()
-
 from omegaconf import DictConfig, OmegaConf
 
-def main(config:DictConfig):
+from pytorch_lightning.loggers import WandbLogger
+
+
+def main(config:DictConfig, logger, strategy, callbacks, args):
 
     # ---------------------
     # Model
     # ---------------------
     module = MxLSTMClassifier(config) 
 
-    # ---------------------
-    # DDP
-    # ---------------------
-    # gpus = config.hardware.gpus
-    gpus = args.gpu
-    gpus = gpus if isinstance(gpus, list) else [gpus]
-    distributed_backend = config.hardware.dist_backend
-    assert distributed_backend in ('nccl', 'gloo'), f'{distributed_backend=}'
-    strategy = DDPStrategy(process_group_backend=distributed_backend,
-                           find_unused_parameters=False,
-                           gradient_as_bucket_view=True) if len(gpus) > 1 else None
+    if not args.trial_run and args.logger == 'wandb':
+        logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
     
     # ---------------------
-    # Logging and Checkpoints
-    # ---------------------
-
-    run_name = f"train_mxvit_{args.walk}walk_reload{args.kth_reload}"
-    if not args.trial_run:
-        if args.logger == 'wandb': 
-            logger = WandbLogger(project='diq',name= run_name,job_type='train', log_model='all')
-            logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
-        elif args.logger == 'comet':
-            logger = CometLogger(api_key=COMET_API_KEY,project_name='driftiq',experiment_name=run_name)
-         # if not testing code
-        else:
-            logger = None
-    else:
-        logger = None
-    
-    # ---------------------
-    # load dataset - move to data module
+    # Dataset 
     # ---------------------
     dataset = DataSet(walk = args.walk, 
                       architecture= config.model.name,
                       steps = config.time.steps, bins=config.time.bins, 
                       refrac_pd=config.emulator.refrac_pd, threshold= config.emulator.threshold,
                       use_saved_data= args.use_saved_data,
-                      frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess, test=False)
+                      frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess, 
+                      ts_mu = config.walk.ts.mu_init, ts_s = config.walk.ts.sigma_init,
+                      test=False)
     # snippet from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
     
     try:
@@ -151,32 +105,18 @@ def main(config:DictConfig):
   
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
     collate_func = Collator()
-    train_loader = DataLoader(dataset, batch_size=config.batch_size.train, 
-                                            sampler=train_sampler, num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
-
+    train_loader = DataLoader(dataset, batch_size=config.batch_size.train,
+                                                    sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
     
     validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
                                                     sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
 
-    
     # ---------------------
-    # Callbacks and Misc
+    # Params
     # ---------------------
-    callbacks = list()
-    if config.training.lr_scheduler.use:
-        callbacks.append(LearningRateMonitor(logging_interval='step'))
-    callbacks.append(ModelSummary(max_depth=2))
-    # see RVT > callbacks > custom > get_ckpt_callback 
-    ckpt_filename = f"{run_name}_"+"epoch={epoch:03d}-step={step}"
+    gpus = args.gpu
+    gpus = gpus if isinstance(gpus, list) else [gpus]
 
-    checkpoint_callback = ModelCheckpoint(monitor='val_accuracy',mode='max',
-                                          every_n_epochs=config.logging.ckpt_every_n_epochs,
-                                          filename=ckpt_filename,
-                                          save_top_k=1,save_last=True,verbose=True) # 2 if restarting with arbtrary accuracy 
-    checkpoint_callback.CHECKPOINT_NAME_LAST = 'last_epoch={epoch:03d}-step={step}'
-    callbacks.append(checkpoint_callback)
-    early_stop_callback = EarlyStopping(monitor="val_loss")
-    callbacks.append(early_stop_callback)
 
     # ---------------------
     # Training
@@ -221,6 +161,27 @@ def main(config:DictConfig):
     else:
         trainer.fit(module, train_loader, validation_loader)
 
+
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--walk", type=str, default='ts')
+parser.add_argument("--preprocess", type = bool, default=True)
+
+# parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) for outer train module 
+parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
+parser.add_argument("--use_saved_data", type=bool, default = False)
+
+parser.add_argument("--trial_run", type=bool, default=False)
+
+parser.add_argument("--logger", type=str, default='wandb')
+parser.add_argument("--gpu", type=int, default=1)
+
+# RANDOM
+parser.add_argument("--reload_path", type=str, default='/home/renaj/Driftiq/driftiq/tsmu500w50/last_epoch=epoch=021-step=step=58454.ckpt') # if not reload empty string
+parser.add_argument("--kth_reload", type=int, default=12)
+
+args = parser.parse_args()
 if __name__ == "__main__":
     conf = OmegaConf.load(os.path.join(os.getcwd(),args.config_relpath))
     main(conf)

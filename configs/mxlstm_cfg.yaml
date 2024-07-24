@@ -6,6 +6,10 @@ input:
   width: 96
   frame_intervals: 1
   
+walk:
+  ts:
+    mu_init: 500
+    sigma_init: 50
 
 time:
   fps: 50
@@ -30,7 +34,7 @@ matrix:
   
 path:
   pretrainedvit: 'google/vit-base-patch16-224'
-  cifar100label:  '/home/renaj/DIQ/Data/cifar100_labelxix/'
+  cifar100label:  '/home/renaj/Driftiq/Data/cifar100_labelxix'
 
 lstm:
   type: 'LSTM'
@@ -97,4 +101,14 @@ logging:
     high_dim:
       enable: True
       every_n_epochs: 1
-      n_samples: 8
+      n_samples, args.reload_path,args.reload_hparams: 8
+
+
+testing:
+  walk: 'random'
+  logger: None
+  gpu: 1
+  reload_path: '/home/renaj/Driftiq/diq/mxlstmvitval27test1/checkpoints/last_epoch=epoch=019-step=step=53140.ckpt'
+  reload_hparams: '/home/renaj/Driftiq/lightning_logs/version_141/hparams.yaml'
+  use_saved_data: false
+  preprocess: true

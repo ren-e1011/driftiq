@@ -31,9 +31,7 @@ from matrixlstm.classification.models.net_matrixlstm_vit import MatrixLSTMViT
 
 class MxLSTMClassifier(LightningModule):
     def __init__(self,
-                 config,
-                 num_classes: int = 100
-                 ):
+                 config                 ):
         super().__init__()
         
 
@@ -42,7 +40,6 @@ class MxLSTMClassifier(LightningModule):
 
         
         # abstracts both the RVT + classifier head
-
 
         self.model = MatrixLSTMViT(input_shape=(config.input.height,config.input.width), 
                                    num_classes=config.output.n_classes, 

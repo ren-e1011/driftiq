@@ -1,5 +1,9 @@
-from configs.envar import CAMERA_RES, IM_SIZE, RAND_TRAJPATH, RAND_EVENTSDIR, TS_TRAJPATH, TS_EVENTSDIR,INFO_TRAJPATH, INFO_EVENTSDIR, RAND_HITSDIR, INFO_HITSDIR, TS_HITSDIR
-import os
+from pathlib import Path 
+import os, sys
+sys.path.append(str(Path.cwd().parent)) # for pythonpath 
+sys.path.append(str(Path.cwd()))
+
+from configs.envar import *
 import numpy as np
 from Data.frames2events_emulator import StatefulEmulator
 from walk.im2epswalk import EPSWalk
@@ -17,14 +21,15 @@ import h5py
 
 
 def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
-                    pos_thres = 0.4, neg_thres = 0.4, refrac_pd = 0.0, fps = 50, 
+                    pos_thres = 0.4, neg_thres = 0.4, fps = 50, 
+                    refrac_pd = 0.0, leak_rate_hz = 0., shot_noise_rate_hz = 0.,
                      # traj_preset for inputting trajectory, start_pos for restarting walk eg calling for more timesteps
                      # vec for im2line ie nsteps in the "N" direction 
                     traj_preset = [], start_pos = [], vec:str = None, 
                     frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
-                    eps = 0.03, ts_w = 4, ts_mu = 3, ucb_w = 10,
+                    eps = 0.03, ts_w = 50, ts_mu = 500, ucb_w = 10,
                     maximize = True, warmup = False, warmup_rounds = 2,
-                    save = False, test_data = False):
+                    save = False, test_data = False, bg_fill = 0):
     
     
     assert not vec or not traj_preset
@@ -34,7 +39,6 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
 
     if len(traj_preset) > 0:
             nsteps = len(traj_preset) 
-
     events = []
     n_events = []
 
@@ -47,14 +51,14 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
 
     
     if walk == 'random':
-        traj_path = RAND_TRAJPATH
-        events_path = RAND_EVENTSDIR
-        hits_path = RAND_HITSDIR
+        traj_path = RAND_TRAJPATH if not test_data else RAND_Test_TRAJPATH
+        events_path = RAND_EVENTSDIR if not test_data else RAND_Test_EVENTSDIR
+        hits_path = RAND_HITSDIR if not test_data else RAND_Test_HITSDIR
         # re sensor_size, event emulator will greyscale any rgb photo 
         walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
 
     elif walk == 'info':
-        traj_path = INFO_TRAJPATH
+        traj_path = INFO_TRAJPATH 
         events_path = INFO_EVENTSDIR
         hits_path = INFO_HITSDIR
         walker = InfoWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
@@ -65,7 +69,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
         events_path = INFO_EVENTSDIR
         hits_path = INFO_HITSDIR
         walker = EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps )
-        warmup = True
+        # warmup = True
         warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
     elif walk == 'ucb':
@@ -77,16 +81,18 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
         warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
     elif walk == 'ts':
-        traj_path = TS_TRAJPATH
-        events_path = TS_EVENTSDIR
-        hits_path = TS_HITSDIR
+        traj_path = TS_TRAJPATH if not test_data else TS_Test_TRAJPATH
+        events_path = TS_EVENTSDIR if not test_data else TS_Test_EVENTSDIR
+        hits_path = TS_HITSDIR if not test_data else TS_Test_HITSDIR
         walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu)
-        warmup = True
+        # warmup = True
         warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
     # placeholder for multiple stabs at infotaxis 
     else:
         raise NotImplementedError
+    
+
     
     if vec is not None:
         assert vec in walker.stepset
@@ -103,12 +109,15 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
                             # up from 0.2 default
                             pos_thres = pos_thres,
                             neg_thres = neg_thres,
+                            leak_rate_hz=leak_rate_hz,
+                            shot_noise_rate_hz= shot_noise_rate_hz,
                             # each frame is 0.02s
                             refractory_period_s=refrac_pd,
                             im_size = im_shape,
                             frame_h = frame_h,
                             frame_w = frame_w, 
-                            test_data= test_data)
+                            test_data= test_data,
+                            bg_fill=bg_fill)
     
     assert walker.sensor_size[0] == v2ee.frame_hw[0]
     assert walker.sensor_size[1] == v2ee.frame_hw[1]
@@ -118,48 +127,6 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     # so as not to override EventEmulator.reset()
     v2ee.reset_(img = imix) 
 
-    
-    # initialize mean spikes 
-    if walk == 'info':
-
-        raw_spikes = []
-
-        round = 1 
-        # warmup 
-        for vec in walker.stepset * round:
-            coords, _ = walker.coord_move(vec=vec)
-            raw_spikes.append(v2ee.step(coords=coords))
-
-            # mean_spikes.append(len(v2ee.step(coords=coords)))
-            # To save random start in walk
-            # If want prior without any record, delete walker.update()
-            # if do not want to save random walk start, need to save step coords to cut
-            walker.update(x_a_next=coords)
-
-        # take spikes from the second set only after some warmup
-        raw_spikes = raw_spikes[-len(walker.stepset):]
-        imtraj = walker.walk[-len(walker.stepset) - 1:]
-        # list of spike counts 
-        # imtraj = imtraj instead of walker.walk
-        if preprocess:
-            _, spikes = cutEdges(x=raw_spikes,imtraj=imtraj)
-        else:
-            spikes = raw_spikes 
-        # initial hit. nhits last step morally equivalent to taking another step 
-        # vec = choice(walker.stepset)
-
-        max_spikes = max(max(spikes),1)
-        std_spikes = np.std(spikes)
-        mean_spikes = int(np.mean(spikes))
-
-
-        # mean_spikes = sum(mean_spikes)
-        # mean_spikes /= len(walker.stepset)
-        # mean_spikes = max(int(mean_spikes),1) 
-
-        walker._init_params(mean_spikes, max_spikes, std_spikes)
-
-
     # includes random steps start in nsteps 
     start = len(walker.walk) - 1 # mod to -1 for full 40 steps ValueError("Illegal value in chunk tuple")
     prev_coords = walker.walk[-1]
@@ -167,7 +134,6 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
         if warmup and len(warmup_set) > 0:
             shuffle(warmup_set)
             vec = warmup_set.pop()
-            
 
         elif traj_preset:
             vec = traj_preset[step - start]
@@ -191,6 +157,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
             step_events, n_step_events = cutEdges(x = [raw_events], imtraj=[prev_coords,next_coords])
         else:
             step_events, n_step_events = raw_events, len(raw_events)        # step_events returns [] => len == 0 if step_events is None 
+        
         walker.update(next_coords, len(step_events))
         events.append(step_events)
         n_events.append(n_step_events)
@@ -206,15 +173,9 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     
 
     if save:
-   
-        # if os.path.isfile(events_path+f"/Im_{imix}.h5"):
-        #     os.remove(events_path+f"/Im_{imix}.h5")
-        #     print(f"Im {walk} {imix} walk h5 file exists. Replacing file")
-        # h5f = h5py.File(os.path.join(events_dir,events_h5),'w')
-        # h5f.create_dataset(f"Im_{imix}_{walk}_events",data=events)
-        # h5f.close()
 
         if os.path.isfile(hits_path+f"/Im_{imix}.pkl"):
+            # raise Exception(f"{hits_path}/Im_{imix}.pkl file exists")
             os.remove(hits_path+f"/Im_{imix}.pkl")
             print(f"Im {walk} {imix} hits pkl file exists. Replacing file")
         hits_dir = hits_path if save else None
@@ -223,6 +184,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
             pickle.dump(n_events, fp)
 
         if os.path.isfile(traj_path+f"/Im_{imix}.pkl"):
+            # raise Exception(f"{traj_path}/Im_{imix}.pkl file exists")
             os.remove(traj_path+f"/Im_{imix}.pkl")
             print(f"Im {walk} {imix} walk traj pkl file exists. Replacing file")
         traj_dir = traj_path if save else None
@@ -231,29 +193,35 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
             pickle.dump(walker.walk, fp)
 
 
-    return events, n_events, walker.walk 
-
+    # return events, n_events, walker.walk, walker.mu_std # MOD FOR TESTING 
+    return events, n_events, walker.walk
 
 
 
 from tqdm import tqdm
 if __name__ == "__main__":
     # imix = 42
-    refrac_pd = 0.0
-    threshold = 0.4
-
-    n_steps = 60
-    fps = 50
+    
+    bg = 0 # black
+    leak = 0.0 # default is .1 
     save = True
     walk = 'ts'
+    testdata = True
+    dataset = CIFAR if not save else CIFAR_test
+
+    refrac_pd = 0.0
+    threshold = 0.4
+    n_steps = 60
+    fps = 50
     start_pos = []
     frame_h, frame_w = 96,96
-    # for imix in tqdm(range(50000)):
-    imix = 42
-    for imix in tqdm(range(5,10)):
+
+    for imix in tqdm(range(len(dataset))):
         events, nevents, imtraj = im2events(img=imix, walk = walk, nsteps=n_steps, 
                                 pos_thres=threshold,neg_thres=threshold, 
-                                refrac_pd=refrac_pd,fps=fps, 
+                                refrac_pd=refrac_pd,fps=fps, # default noise 
+                                test_data= testdata, leak_rate_hz= leak, # defaul leak rate
                                 # to restart walk 
                                 start_pos = start_pos, 
-                                frame_h = frame_h, frame_w = frame_w, preprocess= True, save=True)
+                                frame_h = frame_h, frame_w = frame_w, preprocess= True, save=save,
+                                bg_fill= bg)
