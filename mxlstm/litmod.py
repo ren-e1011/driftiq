@@ -26,7 +26,8 @@ torch.set_float32_matmul_precision('high')
 
 
 
-from matrixlstm.classification.models.net_matrixlstm_vit import MatrixLSTMViT
+# from matrixlstm.classification.models.net_matrixlstm_vit import MatrixLSTMViT
+from mxlstm.models.net_matrixlstm_vit import MatrixLSTMViT
 
 
 class MxLSTMClassifier(LightningModule):
