@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from matrixlstm.classification.libs import utils
+from mxlstm.libs import utils
 
 class EventDropout(nn.Module):
 

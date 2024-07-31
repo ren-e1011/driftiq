@@ -17,11 +17,11 @@ from torchvision.transforms.v2 import (CenterCrop,
                                     ToImage,
                                     ToDtype)
 
-from matrixlstm.classification.layers.EventDropout import EventDropout
-from matrixlstm.classification.layers.SELayer import SELayer
-from matrixlstm.classification.layers.MatrixLSTM import MatrixLSTM
+from mxlstm.layers.EventDropout import EventDropout
+from mxlstm.layers.SELayer import SELayer
+from mxlstm.layers.MatrixLSTM import MatrixLSTM
 # from matrixlstm.classification.layers.MatrixConvLSTM import MatrixConvLSTM
-from matrixlstm.classification.models.network import Network
+from mxlstm.models.network import Network
 from collections import OrderedDict
 
 from transformers import ViTImageProcessor, ViTForImageClassification
