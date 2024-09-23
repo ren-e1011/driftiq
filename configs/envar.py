@@ -18,7 +18,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import numpy as np
 from torchvision import datasets
 
-FILEPATH = '/home/renaj/Driftiq'
+FILEPATH = '/home/eldad/Workspace/driftiq'
 RAND_ = "SavedData/RandomImWalk"
 INFO_ = "SavedData/InfoImWalk"
 TS_ = "SavedData/TSImWalk"
