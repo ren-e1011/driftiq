@@ -9,7 +9,7 @@ from random import choice
 from copy import deepcopy
 
 
-def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = 96, im_size=32):
+def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = (96,96), im_size=32):
         # else will modify x_a
         x_a = deepcopy(x_a)
         stepset = deepcopy(stepset)
@@ -50,7 +50,9 @@ def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = 96, im_size=32
             # would work for removing just one edge and also if the img is eg in a corner there are 3 
             stepset = list(filter(lambda x: x != vec, stepset))
             # vec is not None so will not instantiate new stepset
-            x_a, vec = _coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset)
+            
+            # x_a, vec = _coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset)
+            x_a, vec = _coord_move(vec=choice(stepset),x_a=x_a,stepset=stepset, sensor_size=sensor_size, im_size=im_size)
             # print(f"out of frame, step {step}")import itertools
             
             # coord_move(<- if edge, pick a new )
