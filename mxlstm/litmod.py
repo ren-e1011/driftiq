@@ -13,7 +13,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 from pytorch_lightning import LightningModule
 
 # from models.classification.classifier import Classifier
-from configs.envar import IM_SIZE, CAMERA_RES, N_CLASSES
+# from configs.envar import IM_SIZE, CAMERA_RES, N_CLASSES
 
 from torch.nn.functional import one_hot, log_softmax
 from torch.optim.lr_scheduler import LinearLR, ExponentialLR, ConstantLR, SequentialLR
@@ -32,7 +32,8 @@ from mxlstm.models.net_matrixlstm_vit import MatrixLSTMViT
 
 class MxLSTMClassifier(LightningModule):
     def __init__(self,
-                 config                 ):
+                 config,
+                 classes):
         super().__init__()
         
 
@@ -42,8 +43,9 @@ class MxLSTMClassifier(LightningModule):
         
         # abstracts both the RVT + classifier head
 
-        self.model = MatrixLSTMViT(input_shape=(config.input.height,config.input.width), 
-                                   num_classes=config.output.n_classes, 
+        self.model = MatrixLSTMViT(input_shape=(config.input.height,config.input.width),
+                                   classes=classes, 
+                                   num_classes=config.data.n_classes, 
                                    embedding_size=config.lstm.embedding_size, 
                                       matrix_hidden_size= config.matrix.hidden_size, 
                                       matrix_region_shape=config.matrix.region_shape, 
@@ -52,18 +54,19 @@ class MxLSTMClassifier(LightningModule):
                                       matrix_add_time_feature_mode= config.features.time,
                                       matrix_normalize_relative=config.features.normalize_relative,
                                       matrix_lstm_type=config.lstm.type,
-                                      pretrainedvit_base=config.path.pretrainedvit,
-                                      cifar100labelpath=config.path.cifar100label)
+                                      pretrainedvit_base=config.path.pretrainedvit)
+                                      #cifar100labelpath=config.path.cifar100label)
         # crossentropy loss combines logsoftmax + bceloss 
         # self.loss = CrossEntropyLoss()
 
         # self.num_classes = num_classes  
 
-        self.accuracy = Accuracy(task="multiclass", num_classes=config.output.n_classes)
+        # self.accuracy = Accuracy(task="multiclass", num_classes=config.output.n_classes)
+        self.accuracy = Accuracy(task="multiclass", num_classes=config.data.n_classes)
         self.loss = CrossEntropyLoss()
 
         self.train_config = config.training
-        self.num_classes = config.data.classes
+        self.num_classes = config.data.n_classes
 
         self.batchsize_train = config.batch_size.train
         self.batchsize_eval = config.batch_size.eval

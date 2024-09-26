@@ -5,11 +5,11 @@ sys.path.append(str(Path.cwd()))
 
 
 from random import choice 
-from configs.envar import CAMERA_RES, IM_SIZE
+# from configs.envar import CAMERA_RES, IM_SIZE
 from copy import deepcopy
 
 
-def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
+def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = 96, im_size=32):
         # else will modify x_a
         x_a = deepcopy(x_a)
         stepset = deepcopy(stepset)
@@ -18,21 +18,21 @@ def _coord_move(vec: str, x_a: list, stepset: list, sensor_size = CAMERA_RES):
             x_a[1] -= 1
             # 
             
-        elif vec == 'NE' and (x_a[1] - 1 >= 0) and (x_a[0] + IM_SIZE < sensor_size[0]):
+        elif vec == 'NE' and (x_a[1] - 1 >= 0) and (x_a[0] + im_size < sensor_size[0]):
             x_a[1] -= 1
             x_a[0] += 1
 
-        elif vec == 'E' and (x_a[0] + IM_SIZE < sensor_size[0]):
+        elif vec == 'E' and (x_a[0] + im_size < sensor_size[0]):
             x_a[0] += 1
 
-        elif vec == 'SE' and (x_a[1] + IM_SIZE < sensor_size[1]) and (x_a[0] + IM_SIZE < sensor_size[0]):
+        elif vec == 'SE' and (x_a[1] + im_size < sensor_size[1]) and (x_a[0] + im_size < sensor_size[0]):
             x_a[1] += 1
             x_a[0] += 1
 
-        elif vec == 'S' and (x_a[1] + IM_SIZE < sensor_size[1]):
+        elif vec == 'S' and (x_a[1] + im_size < sensor_size[1]):
             x_a[1] += 1
 
-        elif vec == 'SW' and (x_a[1] + IM_SIZE < sensor_size[1]) and (x_a[0] - 1 >= 0):
+        elif vec == 'SW' and (x_a[1] + im_size < sensor_size[1]) and (x_a[0] - 1 >= 0):
             x_a[1] += 1
             x_a[0] -= 1
 

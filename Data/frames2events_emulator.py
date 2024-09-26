@@ -3,12 +3,13 @@
 # Passes frame to emulator with step dictated by walker
 # Is agnostic to the walk policy 
 
-from configs.envar import CAMERA_RES, IM_SIZE, CIFAR, CIFAR_test
+#from configs.envar import CAMERA_RES, IM_SIZE, CIFAR, CIFAR_test
 import numpy as np
-from v2e.v2ecore.emulator import EventEmulator
+#from v2e.v2ecore.emulator import EventEmulator
+from v2ecore.emulator import EventEmulator
 import cv2
 
-from typing import Union 
+#from typing import Union 
 
 #from PIL import Image 
 
@@ -24,11 +25,14 @@ class StatefulEmulator(EventEmulator):
         neg_thres = 0.4,
         refractory_period_s=0.0,
         
-        im_size = IM_SIZE,
-        frame_h = CAMERA_RES[0],
-        frame_w = CAMERA_RES[1],
+        # im_size = IM_SIZE,
+        # frame_h = CAMERA_RES[0],
+        # frame_w = CAMERA_RES[1],
+        im_size = 32,
+        frame_h = 96,
+        frame_w = 96,
         test_data = False,
-        bg_fill = 255 # MOD    
+        bg_fill = 255, # MOD
     ):
         
         super().__init__(output_folder=output_folder,
@@ -69,7 +73,7 @@ class StatefulEmulator(EventEmulator):
         # to save other event files 
         self.prepare_storage(num_frames,interpTimes)
 
-        self.data = CIFAR if not test_data else CIFAR_test
+        # self.data = CIFAR if not test_data else CIFAR_test
 
         self.fill = bg_fill 
         
@@ -100,17 +104,20 @@ class StatefulEmulator(EventEmulator):
 
         return new_events
 
-    def reset_(self, img: Union[int,np.array], start_pos: list = None):
+    #def reset_(self, img: Union[int,np.array], start_pos: list = None):
+    def reset_(self, img: np.array, start_pos: list = None):
 
         
         # this should not be for restarting the emulator - for the first positioning
         center_coord = self.center if not start_pos else start_pos
 
-        if type(img) == int:
-            # self.img = np.array(CIFAR[img][0]) 
-            self.img = np.array(self.data[img][0])
-        else:
-            self.img = img 
+        # if type(img) == int:
+        #     # self.img = np.array(CIFAR[img][0]) 
+        #     self.img = np.array(self.data[img][0])
+        # else:
+        #     self.img = img 
+
+        self.img = img 
 
         ## equivalent to np.transpose(img,axes=(1,0,2))
         imgT = np.swapaxes(self.img,0,1)

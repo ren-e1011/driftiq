@@ -2,7 +2,7 @@ from copy import deepcopy
 from random import choice
 import numpy as np
 from utils.utils import _coord_move, _traj_to_dir
-from configs.envar import IM_SIZE, CAMERA_RES
+# from configs.envar import IM_SIZE, CAMERA_RES
 from numpy.random import normal
 from math import log, exp
 
@@ -29,7 +29,7 @@ class Action:
             self.sigma = (self.sigma*self.sigma_)/(self.sigma+self.sigma_)
 
 class TSWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], cdp = 50, mu=500): # todo rm w
+    def __init__(self,sensor_size= 96, im_size = 32, maximize = True, start_pos:list = [], cdp = 50, mu=500): # todo rm w
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         

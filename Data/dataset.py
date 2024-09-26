@@ -1,4 +1,10 @@
-from configs.envar import FILEPATH, RAND_, TS_ , CIFAR, CIFAR_test
+from pathlib import Path 
+import os, sys
+sys.path.append(str(Path.cwd().parent)) # for pythonpath 
+sys.path.append(str(Path.cwd()))
+
+# from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, TS_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, TS_TRAJPATH, CIFAR, CIFAR_test
+# from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, TS_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, TS_TRAJPATH, FILEPATH
 
 import os
 import pickle
@@ -52,16 +58,18 @@ class Collator(object):
 
 class DataSet(Dataset):
 
-    def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw, fps, preproc_data = True,ts_s = 50, ts_mu = 500, test=False):
+    def __init__(self, architecture, walk, img_dataset,
+                 steps, bins, refrac_pd, threshold, use_saved_data, paths,
+                 frame_hw, fps, preproc_data = True,ts_s = 50, ts_mu = 500, test=False):
         self.architecture = architecture
         self.walk = walk
         
-        walk_dir = TS_ if self.walk == 'ts' else RAND_ # other walks implemented need to be added here or if other walks in use such as 
+        walk_dir = paths.ts_walk if self.walk == 'ts' else paths.rand_walk # other walks implemented need to be added here or if other walks in use such as 
         test_dir = 'Test' if test else ''
 
-        self.events_path = os.path.join(FILEPATH, walk_dir, test_dir, "Events")
-        self.traj_path = os.path.join(FILEPATH,walk_dir,test_dir,"Trajectories")
-        self.hits_path = os.path.join(FILEPATH, walk_dir,test_dir,"HitLists")
+        self.events_path = os.path.join(paths.filepath, walk_dir, test_dir, "Events")
+        self.traj_path = os.path.join(paths.filepath,walk_dir,test_dir,"Trajectories")
+        self.hits_path = os.path.join(paths.filepath, walk_dir,test_dir,"HitLists")
 
         # number of timesteps
         self.n_steps = steps
@@ -74,9 +82,12 @@ class DataSet(Dataset):
         self.ts_sigma = ts_s
         self.ts_mu = ts_mu
 
-        self.data = CIFAR if not test else CIFAR_test
+        # self.data = CIFAR if not test else CIFAR_test
+        self.data = img_dataset
         self.test_data = test
         self.use_saved = use_saved_data
+        self.paths = paths
+
         # CAMERA_RES
         self.frame_h = frame_hw[0]
         self.frame_w = frame_hw[1]
@@ -116,9 +127,10 @@ class DataSet(Dataset):
         k_steps = self.n_steps if not k_steps else k_steps 
 
         # cutEdges is implicit in im2events 
-        events, nevents, imtraj = im2events(img=i, walk = self.walk, nsteps=k_steps, 
+        events, nevents, imtraj = im2events(img=np.array(self.data[i][0]), imix=i, walk = self.walk, nsteps=k_steps, 
                                    pos_thres=self.thres,neg_thres=self.thres, 
-                                   refrac_pd=self.rp,fps=self.fps, 
+                                   refrac_pd=self.rp,fps=self.fps,
+                                   paths = self.paths, 
                                    # to restart walk 
                                    start_pos = start_pos, 
                                    frame_h = self.frame_h, frame_w = self.frame_w, preprocess= self.preproc_data,
@@ -180,8 +192,10 @@ class DataSet(Dataset):
         return x, nevents, y
 
 from omegaconf import DictConfig, OmegaConf
+from torchvision import datasets
+import argparse 
 if __name__ == "__main__":
-    import argparse 
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--walk", type=str, default='random')
 
@@ -193,9 +207,15 @@ if __name__ == "__main__":
     parser.add_argument("--refrac_pd", type=int, default=0.0)
     parser.add_argument("--threshold", type=int, default=0.4)
 
-
+    dataset = datasets.MNIST(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
+    # dataset = datasets.CIFAR(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
 
     args = parser.parse_args()
-    config = OmegaConf.load('./RVTClass/config/train.yaml')
-    ds = DataSet(config, args)
-    x,y = ds.__getitem__(index=2)
+    config = OmegaConf.load('configs/mxlstm_cfg.yaml')
+    # print(config['model']['name'])
+    # print(args.walk)
+    # ds = DataSet(config, args)
+    ds = DataSet(config['model']['name'], args.walk, dataset,
+                 steps=args.timesteps, bins=40, refrac_pd=args.refrac_pd, threshold=args.threshold, use_saved_data=args.use_saved_data, 
+                 frame_hw=config['emulator']['frame_hw'], fps=50, preproc_data = False,ts_s = 50, ts_mu = 500, test=False)
+    x,y,z = ds.__getitem__(index=2)

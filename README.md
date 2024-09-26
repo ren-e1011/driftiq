@@ -10,6 +10,7 @@ There are _ basic components to the system
 3. **Model** - processor and determinant of information content in walk. see matrixlstm/classification/net_matrixlstm_vit 
 
 
+Requires installation of event-based camera emulator v2e. Follow installation instructions at XXX (add link to repository and paper)
 
 
 ### Notes

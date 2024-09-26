@@ -3,7 +3,7 @@ import os, sys
 sys.path.append(str(Path.cwd().parent)) # for pythonpath 
 sys.path.append(str(Path.cwd()))
 
-from configs.envar import *
+# from configs.envar import *
 import numpy as np
 from Data.frames2events_emulator import StatefulEmulator
 from walk.im2epswalk import EPSWalk
@@ -12,7 +12,7 @@ from walk.im2tswalk import TSWalk
 from walk.im2randomwalk import RandomWalk
 from walk.im2infowalk import InfoWalk
 import pickle 
-from typing import Union 
+# from typing import Union 
 from random import choice, shuffle 
 import warnings
 from utils.preprocess import cutEdges
@@ -41,13 +41,16 @@ def pkl_data(path, file, data, overwrite = True):
         pickle.dump(data, fp)
 
 
-def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
+#def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
+# def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
+def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
                     pos_thres = 0.4, neg_thres = 0.4, fps = 50, 
                     refrac_pd = 0.0, leak_rate_hz = 0., shot_noise_rate_hz = 0.,
+                    paths = [],
                      # traj_preset for inputting trajectory, start_pos for restarting walk eg calling for more timesteps
                      # vec for im2line ie nsteps in the "N" direction 
                     traj_preset = [], start_pos = [], vec:str = None, 
-                    frame_h = CAMERA_RES[0], frame_w = CAMERA_RES[1],
+                    frame_h = 96, frame_w = 96,
                     eps = 0.03, ts_w = 50, ts_mu = 500, ucb_w = 10,
                     maximize = True, warmup = False, warmup_rounds = 2,
                     save = False, test_data = False, bg_fill = 0):
@@ -63,33 +66,36 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     events = []
     n_events = []
 
-    if type(img) == np.ndarray:
-        # to ensure img does not pass frame boundary 
-        # im_shape = max(img.shape[0],img.shape[1])
-        im_shape = img.shape
-    else:
-        im_shape = (IM_SIZE,IM_SIZE)
+    im_shape = img.shape
+    # if type(img) == np.ndarray:
+    #     # to ensure img does not pass frame boundary 
+    #     # im_shape = max(img.shape[0],img.shape[1])
+    #     im_shape = img.shape
+    # else:
+    #     im_shape = (IM_SIZE,IM_SIZE)
 
     # TODO mv 
-    walk_dir = TS_ if walk == 'ts' else RAND_ # other walks implemented need to be added here 
+    walk_dir = paths.ts_walk if walk == 'ts' else paths.rand_walk # other walks implemented need to be added here 
     test_dir = 'Test' if test_data else ''
 
-    events_path = os.path.join(FILEPATH, walk_dir, test_dir, "Events")
-    traj_path = os.path.join(FILEPATH,walk_dir,test_dir,"Trajectories")
-    hits_path = os.path.join(FILEPATH, walk_dir,test_dir,"HitLists")
+    events_path = os.path.join(paths.filepath, walk_dir, test_dir, "Events")
+    traj_path = os.path.join(paths.filepath,walk_dir,test_dir,"Trajectories")
+    hits_path = os.path.join(paths.filepath, walk_dir,test_dir,"HitLists")
     walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
     
     # TODO rm warmup for all walks
     warmup_set = deepcopy(walker.stepset) * warmup_rounds
+    
     
 
     
     if vec is not None:
         assert vec in walker.stepset
     
-    imix = img if type(img) == int else "0000"
+    # imix = img if type(img) == int else "0000"
     events_dir = events_path if save else None
-    events_h5 = f"Im_{imix}.h5" if save else None
+    #events_h5 = f"Im_{imix}.h5" if save else None
+    events_h5 = None
 
     v2ee = StatefulEmulator(
                             output_folder=events_dir, # mod from events_dir  
@@ -116,8 +122,8 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
 
     # initialize first frame of the emulator
     # so as not to override EventEmulator.reset()
-    v2ee.reset_(img = imix) 
-
+    v2ee.reset_(img = img) 
+    
     # includes random steps start in nsteps 
     start = len(walker.walk) - 1 # mod to -1 for full 40 steps ValueError("Illegal value in chunk tuple")
     prev_coords = walker.walk[-1]
@@ -145,7 +151,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
 
         # need to do it step by step for 
         if preprocess:
-            step_events, n_step_events = cutEdges(x = [raw_events], imtraj=[prev_coords,next_coords])
+            step_events, n_step_events = cutEdges(x = [raw_events], im_size = im_shape[0], imtraj=[prev_coords,next_coords])
         else:
             step_events, n_step_events = raw_events, len(raw_events)        # step_events returns [] => len == 0 if step_events is None 
         
@@ -204,6 +210,7 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
 
 
 from tqdm import tqdm
+from torchvision import datasets
 if __name__ == "__main__":
     # imix = 42
     
@@ -212,8 +219,9 @@ if __name__ == "__main__":
     save = True
     walk = 'ts'
     testdata = True
-    dataset = CIFAR if not save else CIFAR_test
-
+    # dataset = CIFAR if not testdata else CIFAR_test
+    dataset = datasets.MNIST(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
+    
     refrac_pd = 0.0
     threshold = 0.4
     n_steps = 60
@@ -221,8 +229,9 @@ if __name__ == "__main__":
     start_pos = []
     frame_h, frame_w = 96,96
 
-    for imix in tqdm(range(len(dataset))):
-        events, nevents, imtraj = im2events(img=imix, walk = walk, nsteps=n_steps, 
+    # for imix in tqdm(range(len(dataset))):
+    for i, data_ in enumerate(tqdm(dataset)):
+        events, nevents, imtraj = im2events(img=np.array(data_[0]), imix=i, walk = walk, nsteps=n_steps, 
                                 pos_thres=threshold,neg_thres=threshold, 
                                 refrac_pd=refrac_pd,fps=fps, # default noise 
                                 test_data= testdata, leak_rate_hz= leak, # defaul leak rate
