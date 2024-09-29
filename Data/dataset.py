@@ -1,4 +1,5 @@
 from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, TS_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, TS_TRAJPATH, CIFAR, CIFAR_test
+from configs.envar import FILEPATH, RAND_, TS_ , CIFAR, CIFAR_test
 
 import os
 import pickle
@@ -55,8 +56,13 @@ class DataSet(Dataset):
     def __init__(self, architecture, walk, steps, bins, refrac_pd, threshold, use_saved_data, frame_hw, fps, preproc_data = True,ts_s = 50, ts_mu = 500, test=False):
         self.architecture = architecture
         self.walk = walk
-        self.events_path = RAND_EVENTSDIR if self.walk == 'random' else TS_EVENTSDIR if self.walk == 'ts' else INFO_EVENTSDIR 
-        self.traj_path = RAND_TRAJPATH if self.walk == 'random' else TS_TRAJPATH if self.walk == 'ts' else INFO_TRAJPATH
+        
+        walk_dir = TS_ if self.walk == 'ts' else RAND_ # other walks implemented need to be added here or if other walks in use such as 
+        test_dir = 'Test' if test else ''
+
+        self.events_path = os.path.join(FILEPATH, walk_dir, test_dir, "Events")
+        self.traj_path = os.path.join(FILEPATH,walk_dir,test_dir,"Trajectories")
+        self.hits_path = os.path.join(FILEPATH, walk_dir,test_dir,"HitLists")
 
         # number of timesteps
         self.n_steps = steps
@@ -78,24 +84,35 @@ class DataSet(Dataset):
 
         self.preproc_data = preproc_data
 
+
+    # def events_by_step(events, nevents):
+    #     events_
+
     # Test 
     def get_saved_events(self,i):
+        hits_pkl = os.path.join(self.hits_path,f"Im_{i}.pkl")
         imtraj_pkl = os.path.join(self.traj_path,f"Im_{i}.pkl")
         try: 
             events = np.array(h5py.File(self.events_path+f"/Im_{i}.h5")['events'], dtype='int32')
-            nevents = [len(e) for e in events].sum()
 
+            
+            with open(hits_pkl, "rb") as file:
+                nevents = pickle.load(file)
+            # nevents = np.load(self.events_path+f"/Im_{i}.h5", allow_pickle=True)
+            # nevents = [len(e) for e in events]
+            
             with open(imtraj_pkl, 'rb') as fp:
             # dict of event counts accessed by [x][y]
                 imtraj = pickle.load(fp)  
                 
         except OSError:
-            print(f"{imtraj_pkl} does not exist. Generating new trajectory")
-            return self.get_k_events(i)
+            print("One or more files of im {i} does not exist or is corrupted. Generating new trajectory")
+            events, nevents, imtraj = self.get_k_events(i, save = True)
+            # TODO save 
         return events, nevents, imtraj
     
     
-    def get_k_events(self,i,start_pos: list = [],k_steps: int = None):
+    def get_k_events(self,i,start_pos: list = [],k_steps: int = None, save = False):
 
         k_steps = self.n_steps if not k_steps else k_steps 
 
@@ -107,9 +124,9 @@ class DataSet(Dataset):
                                    start_pos = start_pos, 
                                    frame_h = self.frame_h, frame_w = self.frame_w, preprocess= self.preproc_data,
                                    ts_mu= self.ts_mu, ts_w = self.ts_sigma,
-                                   test_data=self.test_data)
+                                   test_data=self.test_data, save= save)
         
-        
+        events = np.concatenate(events,axis=0)
         # TODO verify nevents => length in /home/renaj/Driftiq/matrixlstm/classification/libs/trainer.py batch_lengths for batch in dataloader
         return events, nevents, imtraj 
 
@@ -129,9 +146,13 @@ class DataSet(Dataset):
         #     x, _ = cutEdges(x, traj, from_saved=True,steps = self.n_steps)
         
         # to collapse list of timesteps 
+
         # to be swapped out with architecture
-        
-        x = np.concatenate(x, axis=0)
+
+        # TODO 
+        # if len(x) > self.n_steps: #if saved, concatenated
+        #     x = np.concatenate(x, axis=0)
+
         x = torch.tensor(x)
 
         if self.architecture == 'rvt':
@@ -148,7 +169,7 @@ class DataSet(Dataset):
 
         # t_getx_start = t_getsample_start = time.time()
         # self.k_events returns a list of arrays of len(timestamps), each of n x 4 dimensions
-        events, nevents, traj = self.get_k_events(index) if not self.use_saved else self.get_events(index)
+        events, nevents, traj = self.get_k_events(index) if not self.use_saved else self.get_saved_events(index)
 
         x = self.preprocess(events, traj,index) # different preprocessing for mxlstm
         

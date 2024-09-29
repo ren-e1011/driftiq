@@ -19,6 +19,45 @@ from utils.preprocess import cutEdges
 from copy import deepcopy
 import h5py
 
+def pkl_data(path, file, data, overwrite = True):
+
+    # TODO test 
+    root, ext = os.path.splitext(file)
+    if not ext:
+        file = root + '.pkl'
+
+    elif ext != '.pkl':
+        warnings.warn('Pass in file = filename with extension - h5 for events or pkl for supporting data files')
+        return
+        # ext = '.pkl'
+        # file = root + ext
+
+    if os.path.isfile(path+file) and overwrite:
+        warnings.warn(f"{path + file} exists. Replacing file")
+        os.remove(path+file)
+
+    elif os.path.isfile(path+file) and not overwrite:
+        warnings.warn(f"{path + file} exists. Pass in overwrite = True to overwrite file. Aborting save")
+        return 
+
+    # for n_events and trajectory files
+    # if ext == '.pkl':
+    with open(os.path.join(path,file), 'wb') as fp:
+        pickle.dump(data, fp)
+
+    # for events 
+    # elif ext == '.h5':
+    #     with h5py.File(os.path.join(path,file),'w') as f:
+    #         # for events
+    #             dataset = f.create_dataset(
+    #                 name="events",
+    #                 dtype="uint32",
+    #                 compression="gzip",
+    #                 data=data)
+                
+    # else:
+    #     warnings.warn('Extension f"{ext}" files not handled - pass in pkl file for supporting data files')
+
 
 def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
                     pos_thres = 0.4, neg_thres = 0.4, fps = 50, 
@@ -49,48 +88,61 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     else:
         im_shape = (IM_SIZE,IM_SIZE)
 
+    # TODO mv 
+    walk_dir = TS_ if walk == 'ts' else RAND_ # other walks implemented need to be added here 
+    test_dir = 'Test' if test_data else ''
+
+    events_path = os.path.join(FILEPATH, walk_dir, test_dir, "Events")
+    traj_path = os.path.join(FILEPATH,walk_dir,test_dir,"Trajectories")
+    hits_path = os.path.join(FILEPATH, walk_dir,test_dir,"HitLists")
+    walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
     
-    if walk == 'random':
-        traj_path = RAND_TRAJPATH if not test_data else RAND_Test_TRAJPATH
-        events_path = RAND_EVENTSDIR if not test_data else RAND_Test_EVENTSDIR
-        hits_path = RAND_HITSDIR if not test_data else RAND_Test_HITSDIR
-        # re sensor_size, event emulator will greyscale any rgb photo 
-        walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
+    # TODO rm warmup for all walks
+    warmup_set = deepcopy(walker.stepset) * warmup_rounds
+    # if walk == 'random':
+    #     traj_path = RAND_TRAJPATH if not test_data else RAND_Test_TRAJPATH
+    #     events_path = RAND_EVENTSDIR if not test_data else RAND_Test_EVENTSDIR
+    #     hits_path = RAND_HITSDIR if not test_data else RAND_Test_HITSDIR
+    #     # re sensor_size, event emulator will greyscale any rgb photo 
+    #     walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu) if walk == 'ts' \
+    #         else EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps ) if walk == 'eps' \
+    #         else UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w) if walk == 'ucb' \
+    #         else RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
 
-    elif walk == 'info':
-        traj_path = INFO_TRAJPATH 
-        events_path = INFO_EVENTSDIR
-        hits_path = INFO_HITSDIR
-        walker = InfoWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
+    # elif walk == 'info':
+    #     traj_path = INFO_TRAJPATH 
+    #     events_path = INFO_EVENTSDIR
+    #     hits_path = INFO_HITSDIR
+    #     walker = InfoWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
 
-    elif walk == 'eps':
-        # TODO new paths if save
-        traj_path = INFO_TRAJPATH
-        events_path = INFO_EVENTSDIR
-        hits_path = INFO_HITSDIR
-        walker = EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps )
-        # warmup = True
-        warmup_set = deepcopy(walker.stepset) * warmup_rounds
+    # elif walk == 'eps':
+    #     # TODO new paths if save
+    #     traj_path = INFO_TRAJPATH
+    #     events_path = INFO_EVENTSDIR
+    #     hits_path = INFO_HITSDIR
+    #     walker = EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps )
+    #     # warmup = True
+    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
-    elif walk == 'ucb':
-        traj_path = INFO_TRAJPATH
-        events_path = INFO_EVENTSDIR
-        hits_path = INFO_HITSDIR
-        walker = UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w)
-        warmup = True
-        warmup_set = deepcopy(walker.stepset) * warmup_rounds
+    # elif walk == 'ucb':
+    #     traj_path = INFO_TRAJPATH
+    #     events_path = INFO_EVENTSDIR
+    #     hits_path = INFO_HITSDIR
+    #     walker = UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w)
+    #     warmup = True
+    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
-    elif walk == 'ts':
-        traj_path = TS_TRAJPATH if not test_data else TS_Test_TRAJPATH
-        events_path = TS_EVENTSDIR if not test_data else TS_Test_EVENTSDIR
-        hits_path = TS_HITSDIR if not test_data else TS_Test_HITSDIR
-        walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu)
-        # warmup = True
-        warmup_set = deepcopy(walker.stepset) * warmup_rounds
+    # elif walk == 'ts':
+    #     traj_path = TS_TRAJPATH if not test_data else TS_Test_TRAJPATH
+    #     events_path = TS_EVENTSDIR if not test_data else TS_Test_EVENTSDIR
+    #     hits_path = TS_HITSDIR if not test_data else TS_Test_HITSDIR
+    #     walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu)
+    #     # warmup = True
+    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
 
-    # placeholder for multiple stabs at infotaxis 
-    else:
-        raise NotImplementedError
+    # # placeholder for multiple stabs at infotaxis 
+    # else:
+    #     raise NotImplementedError
     
 
     
@@ -101,7 +153,8 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     events_dir = events_path if save else None
     events_h5 = f"Im_{imix}.h5" if save else None
 
-    v2ee = StatefulEmulator(output_folder=events_dir, # mod from events_dir  
+    v2ee = StatefulEmulator(
+                            output_folder=events_dir, # mod from events_dir  
                             dvs_h5= events_h5,  # dont save in emulator because flattens
                             # dvs_h5 = None,
                             num_frames = nsteps,
@@ -173,24 +226,38 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     
 
     if save:
+        # pkl_data(path = events_path, file = f"Im_{imix}.h5", data = events)
+        pkl_data(path = hits_path, file = f"Im_{imix}.pkl", data = n_events)
+        pkl_data(path = traj_path, file = f"Im_{imix}.pkl", data = walker.walk)
 
-        if os.path.isfile(hits_path+f"/Im_{imix}.pkl"):
-            # raise Exception(f"{hits_path}/Im_{imix}.pkl file exists")
-            os.remove(hits_path+f"/Im_{imix}.pkl")
-            print(f"Im {walk} {imix} hits pkl file exists. Replacing file")
-        hits_dir = hits_path if save else None
-        hits_pkl = f"Im_{imix}.pkl" if save else None
-        with open(os.path.join(hits_dir,hits_pkl), 'wb') as fp:
-            pickle.dump(n_events, fp)
+        # if os.path.isfile(events_path+f"/Im_{imix}.pkl"):
+        #     # raise Exception(f"{hits_path}/Im_{imix}.pkl file exists")
+        #     os.remove(events_path+f"/Im_{imix}.pkl")
+        #     print(f"Im {walk} {imix} hits pkl file exists. Replacing file")
+        # events_dir = events_path if save else None
+        # events_pkl = f"Im_{imix}.pkl" if save else None
+        # with open(os.path.join(events_dir,events_pkl), 'wb') as fp:
+        #     pickle.dump(events, fp)
 
-        if os.path.isfile(traj_path+f"/Im_{imix}.pkl"):
-            # raise Exception(f"{traj_path}/Im_{imix}.pkl file exists")
-            os.remove(traj_path+f"/Im_{imix}.pkl")
-            print(f"Im {walk} {imix} walk traj pkl file exists. Replacing file")
-        traj_dir = traj_path if save else None
-        traj_pkl = f"Im_{imix}.pkl" if save else None
-        with open(os.path.join(traj_dir,traj_pkl), 'wb') as fp:
-            pickle.dump(walker.walk, fp)
+        # if os.path.isfile(hits_path+f"/Im_{imix}.pkl"):
+        #     # raise Exception(f"{hits_path}/Im_{imix}.pkl file exists")
+        #     os.remove(hits_path+f"/Im_{imix}.pkl")
+        #     print(f"Im {walk} {imix} hits pkl file exists. Replacing file")
+        # hits_dir = hits_path if save else None
+        # hits_pkl = f"Im_{imix}.pkl" if save else None
+        # with open(os.path.join(hits_dir,hits_pkl), 'wb') as fp:
+        #     pickle.dump(n_events, fp)
+
+        # if os.path.isfile(traj_path+f"/Im_{imix}.pkl"):
+        #     # raise Exception(f"{traj_path}/Im_{imix}.pkl file exists")
+        #     os.remove(traj_path+f"/Im_{imix}.pkl")
+        #     print(f"Im {walk} {imix} walk traj pkl file exists. Replacing file")
+        # traj_dir = traj_path if save else None
+        # traj_pkl = f"Im_{imix}.pkl" if save else None
+        # with open(os.path.join(traj_dir,traj_pkl), 'wb') as fp:
+        #     pickle.dump(walker.walk, fp)
+
+        
 
 
     # return events, n_events, walker.walk, walker.mu_std # MOD FOR TESTING 

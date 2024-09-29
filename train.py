@@ -38,8 +38,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--walk", type=str, default='random')
 parser.add_argument("--preprocess", type = bool, default=True)
 
-parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) 
-parser.add_argument("--use_saved_data", type=bool, default = False)
+parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) # arg not found 
+parser.add_argument("--use_saved_data", type=bool, default = True) # mod for testing use saved
 parser.add_argument('--config_dir', type=str, default='configs/')
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
@@ -61,7 +61,8 @@ def main():
     if args.model == "mxlstmvit":
         config_relpath = os.path.join(args.config_dir,'mxlstm_cfg.yaml')
 
-    elif args.model == 'rvt':
+    # elif args.model == 'rvt':
+    else:
         raise NotImplementedError
         # config_relpath = os.path.join(args.config_dir,'rvt_cfg.yaml')
         
