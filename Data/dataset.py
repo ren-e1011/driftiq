@@ -1,4 +1,3 @@
-from configs.envar import RAND_EVENTSDIR, INFO_EVENTSDIR, TS_EVENTSDIR, RAND_TRAJPATH, INFO_TRAJPATH, TS_TRAJPATH, CIFAR, CIFAR_test
 from configs.envar import FILEPATH, RAND_, TS_ , CIFAR, CIFAR_test
 
 import os

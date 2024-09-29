@@ -23,46 +23,6 @@ RAND_ = "SavedData/RandomImWalk"
 INFO_ = "SavedData/InfoImWalk"
 TS_ = "SavedData/TSImWalk"
 
-# TODO rm
-RVT_FILEPATH = '/home/renaj/Driftiq/RVTClass'
-OUTDIR = './Data/RandomImWalk/300Frames50Hz/'
-
-# home filepath (Driftiq) + 
-RAND_TRAJPATH = os.path.join(FILEPATH, RAND_ ,"Trajectories")
-RAND_Test_TRAJPATH = os.path.join(FILEPATH, RAND_,"Test","Trajectories")
-INFO_TRAJPATH = os.path.join (FILEPATH, INFO_, "Trajectories")
-TS_TRAJPATH = os.path.join(FILEPATH, TS_,"Trajectories")
-TS_Test_TRAJPATH = os.path.join(FILEPATH,TS_,"Test","Trajectories")
-# TODO mod
-RAND_EVENTSDIR = os.path.join(FILEPATH, RAND_, "Events")
-RAND_Test_EVENTSDIR = os.path.join(FILEPATH, RAND_,"Test","Events")
-INFO_EVENTSDIR = os.path.join(FILEPATH, INFO_, "Events")
-TS_EVENTSDIR = os.path.join(FILEPATH, TS_, "Events")
-TS_Test_EVENTSDIR = os.path.join(FILEPATH,TS_,"Test","Events")
-
-RAND_HITSDIR = os.path.join(FILEPATH, RAND_, "HitLists")
-RAND_Test_HITSDIR = os.path.join(FILEPATH, RAND_,"Test","HitLists")
-INFO_HITSDIR = os.path.join(FILEPATH, INFO_, "HitLists")
-TS_HITSDIR = os.path.join(FILEPATH, TS_, "HitLists")
-TS_Test_HITSDIR = os.path.join(FILEPATH,TS_,"Test","HitLists")
-
-# should be unnecessary with pytorch_lightning
-# USE_CUDA = True
-# if USE_CUDA:
-#     torch.set_default_device('cuda')
-
-# failed effort to use multiple workers in train - throws RuntimeError: context has already been set
-# torch.multiprocessing.set_start_method('spawn')
-# swapped 346, 260 by inspection...shouldnt matter
-# https://inivation.com/wp-content/uploads/2019/08/DAVIS346.pdf
-# Width: 346 pixels x 18.5 um/pixel = 6.4 mm
-# Height: 260 pixels x 18.5 um/pixel = 4.81 mm
-# also copied to /home/renee/Driftiq/RVTClass/config/dataset/cifar.yaml resolution_hw
-# crop camera res to gen1 resolution (240,304) for parameter consistency see RVT.config.datasets > gen1.yaml and gen1 paper https://arxiv.org/pdf/2001.08499.pdf
-# factual
-# CAMERA_RES = (260,346,3)
-# gen1
-# CAMERA_RES = (240,304,3)
 # height, width 
 DVS_RES = (260,346,3)
 # fictional 

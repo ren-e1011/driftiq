@@ -21,7 +21,6 @@ import h5py
 
 def pkl_data(path, file, data, overwrite = True):
 
-    # TODO test 
     root, ext = os.path.splitext(file)
     if not ext:
         file = root + '.pkl'
@@ -29,8 +28,6 @@ def pkl_data(path, file, data, overwrite = True):
     elif ext != '.pkl':
         warnings.warn('Pass in file = filename with extension - h5 for events or pkl for supporting data files')
         return
-        # ext = '.pkl'
-        # file = root + ext
 
     if os.path.isfile(path+file) and overwrite:
         warnings.warn(f"{path + file} exists. Replacing file")
@@ -40,23 +37,8 @@ def pkl_data(path, file, data, overwrite = True):
         warnings.warn(f"{path + file} exists. Pass in overwrite = True to overwrite file. Aborting save")
         return 
 
-    # for n_events and trajectory files
-    # if ext == '.pkl':
     with open(os.path.join(path,file), 'wb') as fp:
         pickle.dump(data, fp)
-
-    # for events 
-    # elif ext == '.h5':
-    #     with h5py.File(os.path.join(path,file),'w') as f:
-    #         # for events
-    #             dataset = f.create_dataset(
-    #                 name="events",
-    #                 dtype="uint32",
-    #                 compression="gzip",
-    #                 data=data)
-                
-    # else:
-    #     warnings.warn('Extension f"{ext}" files not handled - pass in pkl file for supporting data files')
 
 
 def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
@@ -99,50 +81,6 @@ def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nste
     
     # TODO rm warmup for all walks
     warmup_set = deepcopy(walker.stepset) * warmup_rounds
-    # if walk == 'random':
-    #     traj_path = RAND_TRAJPATH if not test_data else RAND_Test_TRAJPATH
-    #     events_path = RAND_EVENTSDIR if not test_data else RAND_Test_EVENTSDIR
-    #     hits_path = RAND_HITSDIR if not test_data else RAND_Test_HITSDIR
-    #     # re sensor_size, event emulator will greyscale any rgb photo 
-    #     walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu) if walk == 'ts' \
-    #         else EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps ) if walk == 'eps' \
-    #         else UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w) if walk == 'ucb' \
-    #         else RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
-
-    # elif walk == 'info':
-    #     traj_path = INFO_TRAJPATH 
-    #     events_path = INFO_EVENTSDIR
-    #     hits_path = INFO_HITSDIR
-    #     walker = InfoWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
-
-    # elif walk == 'eps':
-    #     # TODO new paths if save
-    #     traj_path = INFO_TRAJPATH
-    #     events_path = INFO_EVENTSDIR
-    #     hits_path = INFO_HITSDIR
-    #     walker = EPSWalk(sensor_size=(frame_h,frame_w), im_size = im_shape, maximize = maximize, start_pos = start_pos, eps = eps )
-    #     # warmup = True
-    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
-
-    # elif walk == 'ucb':
-    #     traj_path = INFO_TRAJPATH
-    #     events_path = INFO_EVENTSDIR
-    #     hits_path = INFO_HITSDIR
-    #     walker = UCBWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, w = ucb_w)
-    #     warmup = True
-    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
-
-    # elif walk == 'ts':
-    #     traj_path = TS_TRAJPATH if not test_data else TS_Test_TRAJPATH
-    #     events_path = TS_EVENTSDIR if not test_data else TS_Test_EVENTSDIR
-    #     hits_path = TS_HITSDIR if not test_data else TS_Test_HITSDIR
-    #     walker = TSWalk(sensor_size=(frame_h,frame_w), im_size=im_shape, maximize=maximize, start_pos = start_pos, cdp = ts_w, mu = ts_mu)
-    #     # warmup = True
-    #     warmup_set = deepcopy(walker.stepset) * warmup_rounds
-
-    # # placeholder for multiple stabs at infotaxis 
-    # else:
-    #     raise NotImplementedError
     
 
     
