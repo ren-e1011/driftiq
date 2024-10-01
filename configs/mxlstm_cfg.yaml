@@ -1,29 +1,10 @@
 path:
   pretrainedvit: google/vit-base-patch16-224
-  # cifar100label:  '/home/eldad/Workspace/driftiq/Data/cifar100_labelxix'
   filepath: /home/eldad/Workspace/driftiq
-  rand_walk: 
-    trajpath: ${..filepath}/SavedData/RandomImWalk/Trajectories
-    test_trajpath: ${..filepath}/SavedData/RandomImWalk/Test_Trajectories
-    eventspath: ${..filepath}/SavedData/RandomImWalk/Events
-    test_eventspath: ${..filepath}/SavedData/RandomImWalk/Test_Events
-    hitspath: ${..filepath}/SavedData/RandomImWalk/HitLists
-    hitspath_test: ${..filepath}/SavedData/RandomImWalk/Test_HitLists
-  info_walk: 
-    trajpath: ${..filepath}/SavedData/InfoImWalk/Trajectories
-    test_trajpath: ${..filepath}/SavedData/InfoImWalk/Test_Trajectories
-    eventspath: ${..filepath}/SavedData/InfoImWalk/Events
-    test_eventspath: ${..filepath}/SavedData/InfoImWalk/Test_Events
-    hitspath: ${..filepath}/SavedData/InfoImWalk/HitLists
-    hitspath_test: ${..filepath}/SavedData/InfoImWalk/Test_HitLists
-  ts_walk:
-    trajpath: ${..filepath}/SavedData/TSImWalk/Trajectories
-    test_trajpath: ${..filepath}/SavedData/TSImWalk/Test_Trajectories
-    eventspath: ${..filepath}/SavedData/TSImWalk/Events
-    test_eventspath: ${..filepath}/SavedData/TSImWalk/Test_Events
-    hitspath: ${..filepath}/SavedData/TSImWalk/HitLists
-    hitspath_test: ${..filepath}/SavedData/TSImWalk/Test_HitLists
-
+  rand_walk: ${.filepath}/SavedData/RandomImWalk
+  info_walk: ${.filepath}/SavedData/InfoImWalk 
+  ts_walk: ${.filepath}/SavedData/TSImWalk
+    
 model: 
   name: mxlstmvit
 
@@ -38,7 +19,7 @@ camera:
   camera_res: [96,96,3]
   # mod camera_res to dvs_res?
   #center: [${.camera_res}[0]/2 - ${data.im_size}//2, ${.camera_res}[1]/2 - ${data.im_size}//2]
-  center: ???
+  center: ??? #Have to be set in code before usage
 
 walk:
   ts:
@@ -60,7 +41,7 @@ data:
   train_eval_split: .85
   nsamples: 50000
   n_classes: ??? #Have to be set in code before usage
-  im_size: ???
+  im_size: ??? #Have to be set in code before usage
 
 matrix:
   hidden_size: 3
@@ -110,8 +91,8 @@ batch_size:
 
 hardware:
   num_workers:
-    train: 0 # from 6 
-    eval: 0 # from 2
+    train: 1 # from 6 
+    eval: 1 # from 2
   gpus: 0 # Either a single integer (e.g. 3) or a list of integers (e.g. [3,5,6])
   dist_backend: "nccl"
 

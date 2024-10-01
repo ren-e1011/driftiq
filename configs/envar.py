@@ -1,6 +1,5 @@
 import os
- # try 
-
+ 
 # which of these are necessary or useful 
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 # from RVT > train.py
@@ -12,6 +11,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 # https://freedium.cfd/https://iamholumeedey007.medium.com/memory-management-using-pytorch-cuda-alloc-conf-dabe7adec130
 # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1"
 

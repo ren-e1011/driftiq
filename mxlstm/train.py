@@ -106,11 +106,17 @@ def main(config:DictConfig, dataset, logger, strategy, callbacks, args):
   
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
     collate_func = Collator()
+    # train_loader = DataLoader(dataset, batch_size=config.batch_size.train,
+    #                                                 sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
     train_loader = DataLoader(dataset, batch_size=config.batch_size.train,
-                                                    sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
+                                                    sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func,
+                                                    multiprocessing_context='spawn', persistent_workers=True)
     
+    # validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
+    #                                                 sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
     validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
-                                                    sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
+                                                    sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func,
+                                                    multiprocessing_context='spawn', persistent_workers=True)
 
     # ---------------------
     # Params
@@ -141,7 +147,7 @@ def main(config:DictConfig, dataset, logger, strategy, callbacks, args):
         limit_train_batches=config.training.limit_train_batches if not args.trial_run else 4,
         limit_val_batches=config.validation.limit_val_batches if not args.trial_run else 2,
         logger=logger, #if not args.trial_run else None
-        log_every_n_steps=config.logging.train.log_every_n_steps,
+        log_every_n_steps=config.logging.train.log_every_n_steps if not args.trial_run else 2,
         plugins=None,
         # UserWarning: 16 is supported for historical reasons but its usage is discouraged. Please set your precision to 16-mixed instead!
         precision=config.training.precision,
@@ -154,6 +160,7 @@ def main(config:DictConfig, dataset, logger, strategy, callbacks, args):
         deterministic=config.reproduce.deterministic_flag,
         # mod
         reload_dataloaders_every_n_epochs=1
+        # profiler="simple"
         )
 
     if args.reload_path: 

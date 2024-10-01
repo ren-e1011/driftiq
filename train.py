@@ -5,6 +5,8 @@ sys.path.append(str(Path.cwd().parent)) # for pythonpath
 sys.path.append(str(Path.cwd()))
  # for pythonpath
 
+# from configs.envar import COMET_API_KEY
+import configs.envar
 
 from mxlstm.train import main as mxlstm_train 
 # from RVTClass import train as rvt_train 
@@ -21,10 +23,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelSummary
 from pytorch_lightning.strategies import DDPStrategy
 
-from torchvision import datasets
+from pytorch_lightning.callbacks  import DeviceStatsMonitor
+from lightning.pytorch.loggers import CSVLogger
 
-# from configs.envar import COMET_API_KEY
-import configs.envar
+from torchvision import datasets
 
 COMET_API_KEY = ''
 
@@ -43,10 +45,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--walk", type=str, default='random')
 parser.add_argument("--preprocess", action='store_true')
 # parser.add_argument("--no_preprocess", action='store_true')
-# parser.add_argument("--preprocess", type = bool, default=True)
-
 parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) # arg not found 
-parser.add_argument("--use_saved_data", type=bool, default = True) # mod for testing use saved
+#parser.add_argument("--use_saved_data", type=bool, default = True) # mod for testing use saved
+parser.add_argument('--use_saved_data', action='store_true')
 parser.add_argument('--config_dir', type=str, default='configs/')
 parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
 
@@ -69,25 +70,14 @@ args = parser.parse_args()
 
 def main():
 
-    # args.trial_run = False
-
     if args.model == "mxlstmvit":
         config_relpath = os.path.join(args.config_dir,'mxlstm_cfg.yaml')
 
     # elif args.model == 'rvt':
+    #     config_relpath = os.path.join(args.config_dir,'rvt_cfg.yaml')
     else:
         raise NotImplementedError
-        # config_relpath = os.path.join(args.config_dir,'rvt_cfg.yaml')
-    
-    else:
-        raise NotImplementedError
-    
-    print('Trial run') if args.trial_run else print('Real run')
-        
-    # IM_SIZE = dataset[0][0].size[0]
-    # mod camera_res to dvs_res? 
-    # CENTER = [CAMERA_RES[0]//2 - IM_SIZE//2, CAMERA_RES[1]//2 - IM_SIZE//2]
-
+           
     config = OmegaConf.load(os.path.join(os.getcwd(),config_relpath))
     
     if args.dataset == 'CIFAR':
@@ -101,9 +91,7 @@ def main():
     
     config.data.im_size = dataset[0][0].size[0]
     config.camera.center = [config.camera.camera_res[0]/2 - config.data.im_size/2, config.camera.camera_res[1]/2 - config.data.im_size/2]
-    # mod camera_res to dvs_res? 
-    # CENTER = [CAMERA_RES[0]//2 - IM_SIZE//2, CAMERA_RES[1]//2 - IM_SIZE//2]
-
+    
     # ---------------------
     # DDP
     # ---------------------
@@ -131,7 +119,7 @@ def main():
         else:
             logger = None
     else:
-        logger = None
+        logger = CSVLogger("lightning_logs", name=run_name)
 
 
     # ---------------------
@@ -153,6 +141,7 @@ def main():
     early_stop_callback = EarlyStopping(monitor="val_loss")
     callbacks.append(early_stop_callback)
 
+    callbacks.append(DeviceStatsMonitor())
 
     if args.model == "mxlstmvit":
         mxlstm_train(config, dataset, logger, strategy, callbacks, args)

@@ -16,7 +16,6 @@ from torch.utils.data import Dataset
 from Data.datagenerator import im2events
 from utils.preprocess import construct_x
 
-
 from torch.nn.utils.rnn import pad_sequence
 
 class Collator(object):
@@ -122,7 +121,7 @@ class DataSet(Dataset):
         return events, nevents, imtraj
     
     
-    def get_k_events(self,i,start_pos: list = [],k_steps: int = None, save = False):
+    def get_k_events(self,i,start_pos: list = [],k_steps: int = None, save = True):
 
         k_steps = self.n_steps if not k_steps else k_steps 
 

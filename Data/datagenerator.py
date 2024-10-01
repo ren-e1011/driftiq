@@ -41,7 +41,6 @@ def pkl_data(path, file, data, overwrite = True):
         pickle.dump(data, fp)
 
 
-#def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
 # def im2events(img: Union[int,np.array], walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
 def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nsteps = 40, paused: list = [],
                     pos_thres = 0.4, neg_thres = 0.4, fps = 50, 
@@ -75,32 +74,31 @@ def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nst
     #     im_shape = (IM_SIZE,IM_SIZE)
 
     # TODO mv 
-    walk_dir = paths.ts_walk if walk == 'ts' else paths.rand_walk # other walks implemented need to be added here 
+    # other walks implemented need to be added here 
+    if walk == 'ts':
+        walk_dir = paths.ts_walk
+        walker = TSWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
+    else:
+        walk_dir = paths.rand_walk 
+        walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
+
     test_dir = 'Test' if test_data else ''
 
     events_path = os.path.join(paths.filepath, walk_dir, test_dir, "Events")
     traj_path = os.path.join(paths.filepath,walk_dir,test_dir,"Trajectories")
     hits_path = os.path.join(paths.filepath, walk_dir,test_dir,"HitLists")
-    walker = RandomWalk(sensor_size= (frame_h,frame_w), im_size = im_shape, start_pos = start_pos)
-    
+        
     # TODO rm warmup for all walks
     warmup_set = deepcopy(walker.stepset) * warmup_rounds
-    
-    
-
     
     if vec is not None:
         assert vec in walker.stepset
     
     # imix = img if type(img) == int else "0000"
     events_dir = events_path if save else None
-    #events_h5 = f"Im_{imix}.h5" if save else None
-    events_h5 = None
-
-    v2ee = StatefulEmulator(
-                            output_folder=events_dir, # mod from events_dir  
+    events_h5 = f"Im_{imix}.h5" if save else None
+    v2ee = StatefulEmulator(output_folder=events_dir, # mod from events_dir  
                             dvs_h5= events_h5,  # dont save in emulator because flattens
-                            # dvs_h5 = None,
                             num_frames = nsteps,
                             fps = fps,
                             # up from 0.2 default
@@ -138,11 +136,10 @@ def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nst
         else:
             vec = None
 
+        # print(step,vec)
         next_coords = walker.coord_move(vec=vec)
          # in the event of traj_preset and info walk, will overwrite first moves with random steps
         # next_coords = walker.coord_move(vec=traj_preset[step - start]) if traj_preset else walker.coord_move()
-
-        # in the event of traj_preset and info walk, will overwrite first moves with random steps
 
         if paused and step in paused:
             raw_events = v2ee.step(coords = next_coords)
@@ -166,8 +163,6 @@ def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nst
 
     # walk = walker.walk if not traj_preset else traj_preset
     # walk = walker.walk
-
-    
 
     if save:
         # pkl_data(path = events_path, file = f"Im_{imix}.h5", data = events)
@@ -211,20 +206,34 @@ def im2events(img: np.array, imix: int,  walk = 'random', preprocess = True, nst
 
 from tqdm import tqdm
 from torchvision import datasets
+from types import SimpleNamespace
+# import configs.envar
 if __name__ == "__main__":
     # imix = 42
     
+    paths_ = {'filepath': '/home/eldad/Workspace/driftiq',
+             'ts_walk':{ 
+                'trajpath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/Trajectories',
+                'test_trajpath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/Test_Trajectories',
+                'eventspath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/Events',
+                'test_eventspath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/Test_Events',
+                'hitspath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/HitsList',
+                'test_hitspath': '/home/eldad/Workspace/driftiq/SavedData/TSImWalk/Test_HitsList'}
+            }
+    paths = SimpleNamespace(**paths_)
+    paths.ts_walk = SimpleNamespace(**paths.ts_walk)
+
     bg = 0 # black
     leak = 0.0 # default is .1 
     save = True
     walk = 'ts'
-    testdata = True
-    # dataset = CIFAR if not testdata else CIFAR_test
-    dataset = datasets.MNIST(os.path.join(FILEPATH,'SavedData/'),train=True,download=True, transform=None)
+    testdata = False
+    
+    dataset = datasets.MNIST(os.path.join(paths.filepath,'SavedData/'),train=(not testdata), download=True, transform=None)
     
     refrac_pd = 0.0
     threshold = 0.4
-    n_steps = 60
+    n_steps = 40
     fps = 50
     start_pos = []
     frame_h, frame_w = 96,96
@@ -235,6 +244,7 @@ if __name__ == "__main__":
                                 pos_thres=threshold,neg_thres=threshold, 
                                 refrac_pd=refrac_pd,fps=fps, # default noise 
                                 test_data= testdata, leak_rate_hz= leak, # defaul leak rate
+                                paths = paths,
                                 # to restart walk 
                                 start_pos = start_pos, 
                                 frame_h = frame_h, frame_w = frame_w, preprocess= True, save=save,
