@@ -2,7 +2,7 @@ from copy import deepcopy
 from random import choice
 import numpy as np
 from utils.utils import _coord_move, _traj_to_dir
-from configs.envar import IM_SIZE, CAMERA_RES
+# from configs.envar import IM_SIZE, CAMERA_RES
 from numpy.random import lognormal
 from math import log, exp
 
@@ -22,7 +22,8 @@ class Action:
         
             
 class EPSWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], eps=0.02): # todo rm w
+    # def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, maximize = True, start_pos:list = [], eps=0.02): # todo rm w
+    def __init__(self,sensor_size= 96, im_size = 32, maximize = True, start_pos:list = [], eps=0.02): # todo rm w
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         
@@ -62,7 +63,7 @@ class EPSWalk:
                 j = np.argmax([a.mu for a in self.actions]) 
                 vec = self.actions[j].i
 
-        x_a_next, _ = _coord_move(vec, x_a, stepset = stepset, sensor_size = self.sensor_size)
+        x_a_next, _ = _coord_move(vec, x_a, stepset = stepset, sensor_size = self.sensor_size, im_size=self.im_size)
         
         return x_a_next
     

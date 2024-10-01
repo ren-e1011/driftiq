@@ -29,15 +29,26 @@ from transformers import ViTImageProcessor, ViTForImageClassification
 from utils.mxlstm_utils import nevents_x_coord
 
 
-
 class MatrixLSTMViT(Network):
 
+    # def __init__(self, input_shape, embedding_size,
+    #              matrix_hidden_size, matrix_region_shape, matrix_region_stride,
+    #              matrix_add_coords_feature, matrix_add_time_feature_mode,
+    #              matrix_normalize_relative, matrix_lstm_type, num_classes = 100, 
+    #              matrix_keep_most_recent=True, matrix_frame_intervals=1, matrix_frame_intervals_mode=None,
+    #              pretrainedvit_base = 'google/vit-base-patch16-224', cifar100labelpath = '/home/renaj/Driftiq/Data/cifar100_labelxix',
+            
+    #             #  event_dropout=0.25, 
+    #             event_dropout=0.0,
+    #              frame_dropout=-1, fc_dropout=-1, frame_actfn=None,
+    #              lstm_num_layers=1,
+    #              ):
     def __init__(self, input_shape, embedding_size,
                  matrix_hidden_size, matrix_region_shape, matrix_region_stride,
-                 matrix_add_coords_feature, matrix_add_time_feature_mode,
-                 matrix_normalize_relative, matrix_lstm_type, num_classes = 100, 
+                 matrix_add_coords_feature, matrix_add_time_feature_mode, 
+                 matrix_normalize_relative, matrix_lstm_type, classes, num_classes = 100, 
                  matrix_keep_most_recent=True, matrix_frame_intervals=1, matrix_frame_intervals_mode=None,
-                 pretrainedvit_base = 'google/vit-base-patch16-224', cifar100labelpath = '/home/renaj/Driftiq/Data/cifar100_labelxix',
+                 pretrainedvit_base = 'google/vit-base-patch16-224',
             
                 #  event_dropout=0.25, 
                 event_dropout=0.0,
@@ -124,21 +135,23 @@ class MatrixLSTMViT(Network):
 
         ])
 
-        # TODO test s
-        id2label_path = os.path.join(cifar100labelpath,'id2label.pkl')
-        try:
-            with open( id2label_path,'rb') as file:
-                id2label = pickle.load(file)
-        except FileNotFoundError:
-            id2label = None
+        # # TODO test s
+        # id2label_path = os.path.join(cifar100labelpath,'id2label.pkl')
+        # try:
+        #     with open( id2label_path,'rb') as file:
+        #         id2label = pickle.load(file)
+        # except FileNotFoundError:
+        #     id2label = None
         
-        label2id_path = os.path.join(cifar100labelpath,'label2id.pkl')
-        try:
-            with open(label2id_path,'rb') as file:
-                label2id = pickle.load(file)
-        except FileNotFoundError:
-            label2id = None
+        # label2id_path = os.path.join(cifar100labelpath,'label2id.pkl')
+        # try:
+        #     with open(label2id_path,'rb') as file:
+        #         label2id = pickle.load(file)
+        # except FileNotFoundError:
+        #     label2id = None
 
+        id2label = {idx: label for idx, label in enumerate(classes)}
+        label2id = {label: idx for idx, label in enumerate(classes)}
 
         self.vit = ViTForImageClassification.from_pretrained(f"{pretrainedvit_base}",
                                                               num_labels=num_classes,

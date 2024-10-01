@@ -1,4 +1,4 @@
-from configs.envar import CAMERA_RES, FPS, IM_SIZE, height, width 
+# from configs.envar import CAMERA_RES, FPS, IM_SIZE, height, width 
 import numpy as np
 
 # os.chdir(FILEPATH)
@@ -6,9 +6,10 @@ import torch
 # default base e
 import pandas as pd
 
-def time_chunk_eventstream(x, steps = 40):
+def time_chunk_eventstream(x, fps, steps = 40):
     _x = []
-    ts = 1/FPS
+    # ts = 1/FPS
+    ts = 1/fps
      # by inspection
     
     start_t = 0.0
@@ -65,7 +66,7 @@ def time_chunk_eventstream(x, steps = 40):
 #     return cut_x, count_x  
 
 # from saved - one stream of events
-def cutEdges(x,imtraj, from_saved = False, steps = 40):
+def cutEdges(x,imtraj, im_size, from_saved = False, steps = 40):
 
     def cutSlice(x_slice,in_nw,out_nw):
         # append an empty list with 0 events
@@ -73,10 +74,14 @@ def cutEdges(x,imtraj, from_saved = False, steps = 40):
             # trajectory, is input as [x,y]
             # (since sensor is h x w but img is transposed to align)
             # events are input as [t,x,y]
+            # x_slice = x_slice[(x_slice[:,2] != out_nw[0]) & (x_slice[:,2] != in_nw[0])
+            #                 & (x_slice[:,2] != out_nw[0]+IM_SIZE-1) & (x_slice[:,2] != in_nw[0]+IM_SIZE-1)
+            #                 & (x_slice[:,1] != out_nw[1]) & (x_slice[:,1] !=in_nw[1])
+            #                 & (x_slice[:,1] != out_nw[1]+IM_SIZE-1) & (x_slice[:,1] != in_nw[1]+IM_SIZE-1)]
             x_slice = x_slice[(x_slice[:,2] != out_nw[0]) & (x_slice[:,2] != in_nw[0])
-                            & (x_slice[:,2] != out_nw[0]+IM_SIZE-1) & (x_slice[:,2] != in_nw[0]+IM_SIZE-1)
+                            & (x_slice[:,2] != out_nw[0]+im_size-1) & (x_slice[:,2] != in_nw[0]+im_size-1)
                             & (x_slice[:,1] != out_nw[1]) & (x_slice[:,1] !=in_nw[1])
-                            & (x_slice[:,1] != out_nw[1]+IM_SIZE-1) & (x_slice[:,1] != in_nw[1]+IM_SIZE-1)]
+                            & (x_slice[:,1] != out_nw[1]+im_size-1) & (x_slice[:,1] != in_nw[1]+im_size-1)]
         return x_slice
     
     if from_saved:
@@ -122,7 +127,7 @@ def cutEdges(x,imtraj, from_saved = False, steps = 40):
 
 
 # not relevant for our data setup which by default mixes the polarity
-def merge_channel_and_bins(representation: torch.Tensor):
+def merge_channel_and_bins(representation: torch.Tensor, height, width):
     assert representation.dim() == 4
     # reliable representation?
     return torch.reshape(representation, (-1, height, width))
@@ -138,7 +143,8 @@ def is_int_tensor(tensor: torch.Tensor) -> bool:
     return not torch.is_floating_point(tensor) and not torch.is_complex(tensor)
 
 # x is in [batch_size, timesteps,4]
-def construct_x(x: torch.Tensor, step_t: float, bins: int, fastmode: bool = True, height: int = CAMERA_RES[0], width: int = CAMERA_RES[1]) -> torch.Tensor:
+# def construct_x(x: torch.Tensor, step_t: float, bins: int, fastmode: bool = True, height: int = CAMERA_RES[0], width: int = CAMERA_RES[1]) -> torch.Tensor:
+def construct_x(x: torch.Tensor, step_t: float, bins: int, fastmode: bool = True, height: int = 96, width: int = 96) -> torch.Tensor:
     """
         In case of fastmode == True: use uint8 to construct the representation, but could lead to overflow.
         In case of fastmode == False: use int16 to construct the representation, and convert to uint8 after clipping.

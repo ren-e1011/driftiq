@@ -41,12 +41,12 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loggers import WandbLogger
 
 
-def main(config:DictConfig, logger, strategy, callbacks, args):
+def main(config:DictConfig, dataset, logger, strategy, callbacks, args):
 
     # ---------------------
     # Model
     # ---------------------
-    module = MxLSTMClassifier(config) 
+    module = MxLSTMClassifier(config, dataset.classes) 
 
     if not args.trial_run and args.logger == 'wandb':
         logger.watch(model=module, log='all', log_freq=config.logging.train.log_model_every_n_steps, log_graph=True)
@@ -56,9 +56,10 @@ def main(config:DictConfig, logger, strategy, callbacks, args):
     # ---------------------
     dataset = DataSet(walk = args.walk, 
                       architecture= config.model.name,
+                      img_dataset = dataset,
                       steps = config.time.steps, bins=config.time.bins, 
                       refrac_pd=config.emulator.refrac_pd, threshold= config.emulator.threshold,
-                      use_saved_data= args.use_saved_data,
+                      use_saved_data= args.use_saved_data, paths=config.path,
                       frame_hw = (config.input.height,config.input.width), fps=config.time.fps, preproc_data=args.preprocess, 
                       ts_mu = config.walk.ts.mu_init, ts_s = config.walk.ts.sigma_init,
                       test=False)
@@ -105,11 +106,17 @@ def main(config:DictConfig, logger, strategy, callbacks, args):
   
     # num_workers = 24 rm for debugging - RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
     collate_func = Collator()
+    # train_loader = DataLoader(dataset, batch_size=config.batch_size.train,
+    #                                                 sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
     train_loader = DataLoader(dataset, batch_size=config.batch_size.train,
-                                                    sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func)
+                                                    sampler=train_sampler,num_workers=config.hardware.num_workers.train, collate_fn=collate_func,
+                                                    multiprocessing_context='spawn', persistent_workers=True)
     
+    # validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
+    #                                                 sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
     validation_loader = DataLoader(dataset, batch_size=config.batch_size.eval,
-                                                    sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func)
+                                                    sampler=val_sampler,num_workers=config.hardware.num_workers.eval, collate_fn=collate_func,
+                                                    multiprocessing_context='spawn', persistent_workers=True)
 
     # ---------------------
     # Params
@@ -140,7 +147,7 @@ def main(config:DictConfig, logger, strategy, callbacks, args):
         limit_train_batches=config.training.limit_train_batches if not args.trial_run else 4,
         limit_val_batches=config.validation.limit_val_batches if not args.trial_run else 2,
         logger=logger, #if not args.trial_run else None
-        log_every_n_steps=config.logging.train.log_every_n_steps,
+        log_every_n_steps=config.logging.train.log_every_n_steps if not args.trial_run else 2,
         plugins=None,
         # UserWarning: 16 is supported for historical reasons but its usage is discouraged. Please set your precision to 16-mixed instead!
         precision=config.training.precision,
@@ -153,6 +160,7 @@ def main(config:DictConfig, logger, strategy, callbacks, args):
         deterministic=config.reproduce.deterministic_flag,
         # mod
         reload_dataloaders_every_n_epochs=1
+        # profiler="simple"
         )
 
     if args.reload_path: 
@@ -162,26 +170,28 @@ def main(config:DictConfig, logger, strategy, callbacks, args):
         trainer.fit(module, train_loader, validation_loader)
 
 
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--walk", type=str, default='ts')
-parser.add_argument("--preprocess", type = bool, default=True)
-
-# parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) for outer train module 
-parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
-parser.add_argument("--use_saved_data", type=bool, default = False)
-
-parser.add_argument("--trial_run", type=bool, default=False)
-
-parser.add_argument("--logger", type=str, default='wandb')
-parser.add_argument("--gpu", type=int, default=1)
-
-# RANDOM
-parser.add_argument("--reload_path", type=str, default='/home/renaj/Driftiq/driftiq/tsmu500w50/last_epoch=epoch=021-step=step=58454.ckpt') # if not reload empty string
-parser.add_argument("--kth_reload", type=int, default=12)
-
-args = parser.parse_args()
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--walk", type=str, default='ts')
+    parser.add_argument("--preprocess", type = bool, default=True)
+
+    # parser.add_argument("--model", type=str, default='mxlstmvit', choices=['mxlstmvit','rvt']) for outer train module 
+    parser.add_argument('--config_relpath', type=str, default='configs/mxlstm_cfg.yaml')
+    parser.add_argument("--use_saved_data", type=bool, default = False)
+
+    parser.add_argument("--trial_run", type=bool, default=False)
+
+    parser.add_argument("--logger", type=str, default='wandb')
+    parser.add_argument("--gpu", type=int, default=1)
+
+    # RANDOM
+    parser.add_argument("--reload_path", type=str, default='/home/renaj/Driftiq/driftiq/tsmu500w50/last_epoch=epoch=021-step=step=58454.ckpt') # if not reload empty string
+    parser.add_argument("--kth_reload", type=int, default=12)
+
+    parser.add_argument("--dataset", type=str, default='CIFAR')
+
+    args = parser.parse_args()
+
     conf = OmegaConf.load(os.path.join(os.getcwd(),args.config_relpath))
     main(conf)

@@ -4,11 +4,11 @@ from utils.utils import _coord_move
 
 
 
-from configs.envar import IM_SIZE, CAMERA_RES
+# from configs.envar import IM_SIZE, CAMERA_RES
 import numpy as np
 
 class RandomWalk:
-    def __init__(self,sensor_size= CAMERA_RES, im_size = IM_SIZE, start_pos:list = []):
+    def __init__(self,sensor_size= 96, im_size = 32, start_pos:list = []):
 
         size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         

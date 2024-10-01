@@ -1,11 +1,26 @@
+path:
+  pretrainedvit: google/vit-base-patch16-224
+  filepath: /home/eldad/Workspace/driftiq
+  rand_walk: ${.filepath}/SavedData/RandomImWalk
+  info_walk: ${.filepath}/SavedData/InfoImWalk 
+  ts_walk: ${.filepath}/SavedData/TSImWalk
+    
 model: 
   name: mxlstmvit
 
 input: 
-  height: 96
+  height: 96 #??? same as camera.camera_res ???
   width: 96
   frame_intervals: 1
-  
+
+camera:  
+  dvs_res: [260,346,3]
+  # fictional 
+  camera_res: [96,96,3]
+  # mod camera_res to dvs_res?
+  #center: [${.camera_res}[0]/2 - ${data.im_size}//2, ${.camera_res}[1]/2 - ${data.im_size}//2]
+  center: ??? #Have to be set in code before usage
+
 walk:
   ts:
     mu_init: 500
@@ -22,26 +37,21 @@ emulator:
   frame_hw: [96,96]
 
 data:
+  dataset: CIFAR
   train_eval_split: .85
   nsamples: 50000
-  classes: 100
-
+  n_classes: ??? #Have to be set in code before usage
+  im_size: ??? #Have to be set in code before usage
 
 matrix:
   hidden_size: 3
   region_shape: [1,1]
   region_stride: [1,1]
-  
-path:
-  pretrainedvit: 'google/vit-base-patch16-224'
-  cifar100label:  '/home/renaj/Driftiq/Data/cifar100_labelxix'
 
 lstm:
   type: 'LSTM'
   n_layers: 1
   embedding_size: 16
-
-
 
 features:
   time: 'delay_norm'
@@ -49,14 +59,11 @@ features:
   normalize_relative: True
   add_coords: True
 
-
-output:
-  n_classes: 100 
-
 reproduce:
   seed_everything: null # Union[int, null]
   deterministic_flag: False # Must be true for fully deterministic behaviour (slows down training)
   benchmark: False # Should be set to false for fully deterministic behaviour. Could potentially speed up training.
+
 training:
   precision: 32 # 16-mixed
   max_epochs: 10000
@@ -72,19 +79,23 @@ training:
     pct_start: 0.005
     div_factor: 25 # init_lr = max_lr / div_factor
     final_div_factor: 10000 # final_lr = max_lr / final_div_factor (this is different from Pytorch' OneCycleLR param)
+
 validation:
   limit_val_batches: 1.0
   val_check_interval: null # Optional[int]
   check_val_every_n_epoch: 1 # Optional[int]
+
 batch_size:
   train: 16
   eval: 16
+
 hardware:
   num_workers:
-    train: 0 # from 6 
-    eval: 0 # from 2
+    train: 1 # from 6 
+    eval: 1 # from 2
   gpus: 0 # Either a single integer (e.g. 3) or a list of integers (e.g. [3,5,6])
   dist_backend: "nccl"
+
 logging:
   ckpt_every_n_epochs: 1
   train:
@@ -102,7 +113,6 @@ logging:
       enable: True
       every_n_epochs: 1
       n_samples, args.reload_path,args.reload_hparams: 8
-
 
 testing:
   walk: 'random'

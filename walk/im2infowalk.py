@@ -2,14 +2,16 @@ from copy import deepcopy
 from random import choice
 import numpy as np
 from utils.utils import _coord_move
-from configs.envar import IM_SIZE, CAMERA_RES, EPSILON
+# from configs.envar import IM_SIZE, CAMERA_RES, EPSILON
 from scipy.stats import poisson as Poisson_
 from warnings import warn 
 from scipy.special import kn
 
+EPSILON = 1e-6
+
 class InfoWalk:
     # note that sensor size is in dimensions y,x for v2e input while prior was recorded in x,y
-    def __init__(self,sensor_size= CAMERA_RES, im_size: int = IM_SIZE, start_pos:list = [], p_prior: np.array = None, mean_spikes: np.array = None):
+    def __init__(self,sensor_size= 96, im_size: int = 32, start_pos:list = [], p_prior: np.array = None, mean_spikes: np.array = None):
 
         self.sensor_size = (sensor_size,sensor_size) if isinstance(sensor_size, int) else sensor_size
         self.im_size = (im_size, im_size) if isinstance(im_size, int) else im_size
